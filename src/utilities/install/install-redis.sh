@@ -288,7 +288,6 @@ main() {
     log_info "   - Setting up Redis Sentinel for high availability"
     log_info "   - Configuring proper firewall rules"
     log_info "   - Setting up monitoring and alerting"
-    log_info "   - Configuring proper backup solutions"
     log_info "   - Reviewing security settings in the configuration file"
     
     return 0

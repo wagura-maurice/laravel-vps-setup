@@ -1,50 +1,17 @@
 #!/bin/bash
 set -euo pipefail
 
-# Set project root and core directories
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"  # Points to utilities directory
-PROJECT_ROOT="$(dirname "${SCRIPT_DIR}")"  # Points to src directory
-CORE_DIR="${PROJECT_ROOT}/core"
-UTILS_DIR="${SCRIPT_DIR}"  # Current directory is utilities
-LOG_DIR="${PROJECT_ROOT}/../logs"
-CONFIG_DIR="${PROJECT_ROOT}/../config"
-DATA_DIR="${PROJECT_ROOT}/../data"
-ENV_FILE="${PROJECT_ROOT}/../.env"
-
-# Export environment variables
-export PROJECT_ROOT CORE_DIR SRC_DIR UTILS_DIR LOG_DIR CONFIG_DIR DATA_DIR ENV_FILE
-
-# Create required directories
-mkdir -p "${LOG_DIR}" "${CONFIG_DIR}" "${DATA_DIR}" "${PROJECT_ROOT}/tmp"
-chmod 750 "${LOG_DIR}" "${CONFIG_DIR}" "${DATA_DIR}" "${PROJECT_ROOT}/tmp"
-
-# Function to safely source core utilities
-safe_source() {
-    local file="$1"
-    if [ -f "${file}" ]; then
-        # shellcheck source=/dev/null
-        source "${file}" || {
-            echo "Error: Failed to load ${file}" >&2
-            return 1
-        }
-    else
-        echo "Error: Required file not found: ${file}" >&2
-        return 1
-    fi
+# Load core configuration and utilities
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+CORE_DIR="${SCRIPT_DIR}/core"
+source "${CORE_DIR}/env-loader.sh" 2>/dev/null || {
+    echo "Error: Failed to load ${CORE_DIR}/env-loader.sh" >&2
+    exit 1
 }
 
-# Source core utilities with error handling
-if ! safe_source "${CORE_DIR}/config-manager.sh" || \
-   ! safe_source "${CORE_DIR}/env-loader.sh" || \
-   ! safe_source "${CORE_DIR}/logging.sh"; then
-    exit 1
-fi
-
 # Initialize environment and logging
-if ! load_environment || ! init_logging; then
-    echo "Error: Failed to initialize environment and logging" >&2
-    exit 1
-fi
+load_environment
+init_logging
 
 log_section "Certbot Installation"
 
@@ -55,10 +22,9 @@ readonly INSTALL_OPTS="-y --no-install-recommends"
 # Required packages
 readonly CERTBOT_PACKAGES=(
     "certbot"
-    "python3-certbot-apache"
+    "python3-certbot-nginx"
     "python3-certbot-dns-cloudflare"  # For CloudFlare DNS validation
     "python3-certbot-dns-route53"     # For AWS Route 53 DNS validation
-    "python3-certbot-nginx"           # For Nginx plugin (if needed in the future)
     "python3-pip"
 )
 
@@ -139,12 +105,9 @@ setup_certbot_directories() {
 create_test_certificate() {
     local domain
     
-    # Load domain from environment or config
-    if [ -f "${ENV_FILE}" ]; then
-        # shellcheck source=/dev/null
-        source "${ENV_FILE}"
-        domain="${DOMAIN_NAME:-}"
-    fi
+    # Ensure environment is loaded
+    load_environment
+    domain="${DOMAIN_NAME:-}"
     
     if [ -z "${domain}" ]; then
         log_warning "No domain configured. Skipping test certificate creation."
@@ -153,8 +116,9 @@ create_test_certificate() {
     
     log_info "Creating a test certificate for ${domain}..."
     
+    local admin_email="${LETSENCRYPT_EMAIL:-admin@${domain}}"
     if certbot certonly --test-cert --webroot -w /var/www/html \
-        -d "${domain}" --email "$(get_config "admin_email" "admin@${domain}")" \
+        -d "${domain}" --email "${admin_email}" \
         --agree-tos --no-eff-email --keep-until-expiring; then
         log_success "Test certificate created successfully"
         return 0
@@ -164,15 +128,19 @@ create_test_certificate() {
     fi
 }
 
+
 # Function to set up automatic renewal
 setup_automatic_renewal() {
     log_info "Setting up automatic certificate renewal..."
+
+    # Ensure environment is loaded
+    load_environment
     
     # Create systemd directory if it doesn't exist
     mkdir -p /etc/systemd/system
     
-    # Create a systemd timer for certbot renewal with backup if exists
-    cat <<- 'EOF' | install -D --backup=numbered /dev/stdin /etc/systemd/system/certbot-renew.timer
+    # Create a systemd timer for certbot renewal
+    cat <<- 'EOF' | install -D /dev/stdin /etc/systemd/system/certbot-renew.timer
 [Unit]
 Description=Certbot renewal timer
 
@@ -185,8 +153,8 @@ Persistent=true
 WantedBy=timers.target
 EOF
 
-    # Create a systemd service for certbot renewal with backup if exists
-    cat <<- 'EOF' | install -D --backup=numbered /dev/stdin /etc/systemd/system/certbot-renew.service
+    # Create a systemd service for certbot renewal
+    cat <<- 'EOF' | install -D /dev/stdin /etc/systemd/system/certbot-renew.service
 [Unit]
 Description=Certbot renewal service
 After=network-online.target
@@ -194,7 +162,7 @@ Wants=network-online.target
 
 [Service]
 Type=oneshot
-ExecStart=/usr/bin/certbot renew --quiet --deploy-hook "systemctl reload apache2"
+ExecStart=/usr/bin/certbot renew --quiet --deploy-hook "systemctl reload nginx"
 EOF
 
     # Enable and start the timer
