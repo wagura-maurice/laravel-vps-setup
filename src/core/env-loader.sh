@@ -1,11 +1,20 @@
 #!/bin/bash
+set -euo pipefail
 
 # Environment Loader for Laravel Setup and Management
 # This script provides a unified way to load environment variables and configurations
 # for both setup and management scripts.
 
-# Ensure we're not being sourced multiple times
-[ -n "${ENV_LOADED:-}" ] && return
+# Prevent direct execution
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    echo "Error: This script should be sourced, not executed directly" >&2
+    echo "Usage: source $0" >&2
+    exit 1
+fi
+
+# Main environment loading function
+
+export ENV_LOADED=1
 
 # Set script directory if not already set
 if [ -z "${SCRIPT_DIR:-}" ]; then
@@ -97,33 +106,57 @@ else
     log_error "common-functions.sh not found in ${CORE_DIR}" 1
 fi
 
-# Set default values for environment variables
-declare -A DEFAULTS=(
-    [PROJECT_ROOT]="$PROJECT_ROOT"
-    [SRC_DIR]="$SRC_DIR"
-    [CORE_DIR]="$CORE_DIR"
-    [LOG_DIR]="$LOG_DIR"
-    [CONFIG_DIR]="${PROJECT_ROOT}/config"
-    [LARAVEL_DATA_DIR]="/var/www/html/storage"
-    [DB_TYPE]="mysql"
-    [DB_HOST]="localhost"
-    [DB_PORT]="3306"
-    [DB_NAME]="laravel_db"
-    [DB_USER]="deployer"
-    [DB_PASS]="Qwerty123!"
-    [DB_ROOT_PASS]="!Qwerty123!"
-    [DEPLOYER_USER]="deployer"
-    [DEPLOYER_PASS]="Qwerty123!"
-    [PHP_MEMORY_LIMIT]="256M"
-    [PHP_UPLOAD_LIMIT]="10M"
-    [PHP_MAX_EXECUTION_TIME]="600"
-    [TIMEZONE]="Africa/Nairobi"
-    [DOMAIN_NAME]="localhost"
-    [LARAVEL_PROJECT_NAME]="default_laravel_project"
-    [REDIS_HOST]="localhost"
-    [REDIS_PORT]="6379"
-    [REDIS_PASSWORD]=""
-)
+# Function to set default values for environment variables
+set_defaults() {
+    declare -gA DEFAULTS=(
+        [PROJECT_ROOT]="${PROJECT_ROOT:-}"
+        [SRC_DIR]="${SRC_DIR:-${PROJECT_ROOT}/src}"
+        [CORE_DIR]="${CORE_DIR:-${PROJECT_ROOT}/src/core}"
+        [LOG_DIR]="${LOG_DIR:-${PROJECT_ROOT}/logs}"
+        [CONFIG_DIR]="${CONFIG_DIR:-${PROJECT_ROOT}/config}"
+        [LARAVEL_DATA_DIR]="${LARAVEL_DATA_DIR:-/var/www/html/${LARAVEL_PROJECT_NAME:-laravel}/storage}"
+        [DB_TYPE]="${DB_TYPE:-mysql}"
+        [DB_HOST]="${DB_HOST:-localhost}"
+        [DB_PORT]="${DB_PORT:-3306}"
+        [DB_NAME]="${DB_NAME:-laravel_db}"
+        [DB_USER]="${DB_USER:-root}"
+        [DB_PASS]="${DB_PASS:-Rtcv39$$}"
+        [PHP_MEMORY_LIMIT]="${PHP_MEMORY_LIMIT:-256M}"
+        [PHP_UPLOAD_LIMIT]="${PHP_UPLOAD_LIMIT:-10M}"
+        [PHP_MAX_EXECUTION_TIME]="${PHP_MAX_EXECUTION_TIME:-600}"
+        [TIMEZONE]="${TIMEZONE:-Africa/Nairobi}"
+        [DOMAIN_NAME]="${DOMAIN_NAME:-localhost}"
+        [LARAVEL_PROJECT_NAME]="${LARAVEL_PROJECT_NAME:-default_laravel_project}"
+        [REDIS_HOST]="${REDIS_HOST:-localhost}"
+        [REDIS_PORT]="${REDIS_PORT:-6379}"
+        [REDIS_PASSWORD]="${REDIS_PASSWORD:-}"
+    )
+}
+
+# Load environment from .env file if it exists
+if [ -f "${PROJECT_ROOT}/.env" ]; then
+    # Export existing variables to avoid them being overridden
+    local_vars=$(compgen -v | grep -v '^_$')
+    
+    # Source the .env file
+    set -o allexport
+    source "${PROJECT_ROOT}/.env"
+    set +o allexport
+    
+    # Restore previous variables
+    for var in $local_vars; do
+        if [ -n "${!var+x}" ]; then
+            export "$var=${!var}"
+        fi
+    done
+    
+    log_info "Loaded environment variables from ${PROJECT_ROOT}/.env"
+else
+    log_warning "No .env file found at ${PROJECT_ROOT}/.env, using default values"
+fi
+
+# Set default values
+set_defaults
 
 # Load environment from .env file
 load_environment() {
@@ -132,43 +165,24 @@ load_environment() {
         return 0
     fi
     
-    # Use the exported ENV_FILE variable or default to PROJECT_ROOT/.env
-    local env_file="${ENV_FILE:-${PROJECT_ROOT}/.env}"
-    
     # Ensure PROJECT_ROOT is set
     if [ -z "${PROJECT_ROOT:-}" ]; then
         echo "Error: PROJECT_ROOT is not set" >&2
         return 1
     fi
     
-    # Update ENV_FILE to absolute path
-    env_file="${PROJECT_ROOT}/.env"
+    local env_file="${ENV_FILE:-${PROJECT_ROOT}/.env}"
     export ENV_FILE="$env_file"
-    
-    # Use log_info if available, otherwise echo
-    if type -t log_info >/dev/null 2>&1; then
-        log_info "Loading environment from $env_file"
-    else
-        echo "[INFO] Loading environment from $env_file"
-    fi
     
     # Create required directories if they don't exist
     mkdir -p "$(dirname "$env_file")" 2>/dev/null || {
-        if type -t log_error >/dev/null 2>&1; then
-            log_error "Failed to create directory for .env file"
-        else
-            echo "Error: Failed to create directory for .env file" >&2
-        fi
+        log_error "Failed to create directory for .env file"
         return 1
     }
     
     # Create default .env if it doesn't exist
     if [[ ! -f "$env_file" ]]; then
-        if type -t log_warning >/dev/null 2>&1; then
-            log_warning "No .env file found at $env_file, creating with default values"
-        else
-            echo "[WARNING] No .env file found at $env_file, creating with default values"
-        fi
+        log_warning "No .env file found at $env_file, creating with default values"
         
         # Create a basic .env file with default values
         cat > "$env_file" << 'EOL'
@@ -176,8 +190,7 @@ load_environment() {
 DB_HOST=localhost
 DB_NAME=laravel_db
 # MySQL root password (hardcoded for security)
-DB_ROOT_PASS=Rtcv39$$
-# Note: Only root user exists in MySQL, no deployer user is created
+DB_PASS=Rtcv39$$
 
 # Laravel Configuration
 APP_NAME=Laravel
@@ -208,10 +221,6 @@ TIMEZONE=Africa/Nairobi
 LANGUAGE=en_US.UTF-8
 DOMAIN_NAME=localhost
 
-# Deployer User Configuration
-DEPLOYER_USER=deployer
-DEPLOYER_PASS=Qwerty123!
-
 # PHP Configuration
 PHP_MEMORY_LIMIT=256M
 PHP_UPLOAD_LIMIT=10M
@@ -220,42 +229,37 @@ PHP_MAX_INPUT_TIME=1200
 EOL
         
         if [[ $? -ne 0 ]]; then
-            if type -t log_error >/dev/null 2>&1; then
-                log_error "Failed to create default .env file at $env_file"
-            else
-                echo "Error: Failed to create default .env file at $env_file" >&2
-            fi
+            log_error "Failed to create default .env file at $env_file"
             return 1
         fi
         
         chmod 600 "$env_file"
-        if type -t log_success >/dev/null 2>&1; then
-            log_success "Created default .env file at $env_file"
-        else
-            echo "[SUCCESS] Created default .env file at $env_file"
-        fi
+        log_success "Created default .env file at $env_file"
     fi
-
-    # Load environment variables from .env file
-    if [[ -f "$env_file" ]]; then
-        # Export all variables from .env
-        # Use set -a to automatically export all variables
-        set -a
-        # shellcheck source=/dev/null
+    
+    # Load the environment variables
+    if [ -f "$env_file" ]; then
+        # Export existing variables to avoid them being overridden
+        local_vars=$(compgen -v | grep -v '^_$')
+        
+        # Source the .env file
+        set -o allexport
         source "$env_file" || {
-            if type -t log_error >/dev/null 2>&1; then
-                log_error "Failed to source .env file at $env_file"
-            else
-                echo "Error: Failed to source .env file at $env_file" >&2
-            fi
-            set +a
+            log_error "Failed to source .env file at $env_file"
+            set +o allexport
             return 1
         }
-        set +a
+        set +o allexport
         
-        if type -t log_info >/dev/null 2>&1; then
-            log_info "Loaded environment variables from $env_file"
-        else
+        # Restore previous variables
+        for var in $local_vars; do
+            if [ -n "${!var+x}" ]; then
+                export "$var=${!var}"
+            fi
+        done
+        
+        log_info "Loaded environment from $env_file"
+    fi
             echo "[INFO] Loaded environment variables from $env_file"
         fi
     else
