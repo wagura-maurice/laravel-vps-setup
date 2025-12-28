@@ -47,13 +47,32 @@ if ! grep -q "Ubuntu 22.04" /etc/os-release 2>/dev/null; then
     log_warning "This script is designed for Ubuntu 22.04. Proceeding anyway, but results may vary."
 fi
 
-# Load core environment loader
+# Load core environment loader with error handling
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CORE_DIR="${SCRIPT_DIR}/src/core"
-if [ -f "${CORE_DIR}/env-loader.sh" ]; then
-    source "${CORE_DIR}/env-loader.sh"
-else
-    log_error "Failed to load environment loader from ${CORE_DIR}/env-loader.sh"
+LOG_FILE="/tmp/laravel-setup-$(date +%s).log"
+
+# Function to log errors to file and stderr
+log_to_file() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" | tee -a "$LOG_FILE" >&2
+}
+
+# Check if env-loader.sh exists and is readable
+if [ ! -f "${CORE_DIR}/env-loader.sh" ]; then
+    log_error "Environment loader not found at ${CORE_DIR}/env-loader.sh"
+    exit 1
+fi
+
+# Source the environment loader with error handling
+if ! source "${CORE_DIR}/env-loader.sh" 2>>"$LOG_FILE"; then
+    log_error "Failed to load environment from ${CORE_DIR}/env-loader.sh"
+    log_error "Check $LOG_FILE for details"
+    exit 1
+fi
+
+# Verify environment was loaded correctly
+if [ -z "${ENV_LOADED:-}" ]; then
+    log_error "Environment was not loaded properly. Check $LOG_FILE for errors."
     exit 1
 fi
 
@@ -103,11 +122,8 @@ main() {
     log_success "Laravel application directory: /var/www/html/${project_name}"
     log_success "Public directory: /var/www/html/${project_name}/public"
     log_success "Domain configured: ${domain_name}"
-    log_success "Deployer user created with password: ${DEPLOYER_PASS:-Qwerty123!}"
     log_success "MySQL root password: ${DB_ROOT_PASS:-!Qwerty123!}"
-    log_success "MySQL deployer password: ${DB_PASS:-Qwerty123!}"
     log_success "Management script: laravel-manager {start|stop|restart|status}"
-    log_success "Deployer user has sudo privileges and owns /var/www/html"
     
     if [ "${domain_name}" != "localhost" ]; then
         log "For SSL certificate, run: sudo certbot --nginx -d ${domain_name}"
