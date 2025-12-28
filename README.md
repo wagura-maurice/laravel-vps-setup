@@ -1,23 +1,25 @@
-# 🚀 Nextcloud Enterprise-Grade Deployment Kit
+# Laravel VPS Setup System
 
-## 📋 Table of Contents
+A comprehensive, modular system for setting up a production-ready Laravel environment on Ubuntu 22.04 VPS.
 
-- [System Requirements](#-system-requirements)
-- [Prerequisites](#-prerequisites)
-- [Installation Steps](#-installation-steps)
-  - [1. System Preparation](#1-system-preparation)
-  - [2. Install and Configure System Dependencies](#2-install-and-configure-system-dependencies)
-  - [3. Install and Configure Apache](#3-install-and-configure-apache)
-  - [4. Install and Configure MariaDB](#4-install-and-configure-mariadb)
-  - [5. Install and Configure PHP](#5-install-and-configure-php)
-  - [6. Install and Configure Redis](#6-install-and-configure-redis)
-  - [7. Install and Configure Certbot](#7-install-and-configure-certbot)
-  - [8. Install and Configure Nextcloud](#8-install-and-configure-nextcloud)
-  - [9. Final Configuration](#9-final-configuration)
-- [Post-Installation](#-post-installation)
-- [Troubleshooting](#-troubleshooting)
+## Overview
 
-## 🖥️ System Requirements
+This system provides a complete, production-ready Laravel development and deployment environment with:
+
+- **Nginx** web server
+- **MySQL 8.0** database server
+- **PHP 8.4** with all Laravel-required extensions
+- **Redis 7.0** for caching and session management
+- **Composer** dependency manager
+- **Node.js 22** and NPM
+- Dedicated **deployer** user with sudo privileges and SSH key management
+- Laravel project pre-installed and configured
+- Proper file permissions and security configurations
+- Environment optimized for Laravel applications
+- Automated SSL certificate management with Certbot
+- Centralized environment variable management via `.env` file
+
+## System Requirements
 
 ### Hardware Requirements
 
@@ -29,1010 +31,355 @@
 ### Software Requirements
 
 - **OS**: Ubuntu 22.04 LTS (recommended)
-- **Web Server**: Apache 2.4+
-- **Database**: MariaDB 10.5+ or MySQL 8.0+
-- **PHP**: 8.2+
-- **Cache**: Redis 6.0+
+- **User**: Root or sudo privileges
 
-## 📋 Prerequisites
+## Installation
 
-1. Fresh Ubuntu 22.04 LTS installation
-2. Root or sudo privileges
-3. Domain name pointing to your server
-4. Minimum 2GB RAM (4GB+ recommended for production)
-5. Basic Linux command line knowledge
+### Quick Setup
 
-## 🚀 Installation Steps
+To set up the complete Laravel environment on a fresh Ubuntu 22.04 VPS:
 
-### 1. System Preparation
+1. Clone this repository:
 
 ```bash
-cd ~
-# Update system packages
-sudo apt update && sudo apt upgrade -y
-
-# Install required tools
-sudo apt install -y software-properties-common
-sudo add-apt-repository universe
-sudo apt update
-sudo apt install -y git
-
-# Clone the repository
-rm -rf nextcloud-setup
-git clone https://github.com/wagura-maurice/nextcloud-setup.git
-cd nextcloud-setup
-
-# Make all scripts executable
-sudo chmod +x ./prepare-system.sh
-sudo chmod +x src/utilities/install/*.sh
-sudo chmod +x src/utilities/configure/*.sh
-
-# Run system preparation script
-sudo ./prepare-system.sh
+git clone https://github.com/wagura-maurice/laravel-vps-setup.git
+cd laravel-vps-setup
 ```
 
-### 2. Install and Configure System Dependencies
+2. Make the setup script executable:
 
 ```bash
-# Install system dependencies
-sudo ./src/utilities/install/install-system.sh
-
-# Configure system dependencies
-sudo ./src/utilities/configure/configure-system.sh
+chmod +x laravel-setup-system.sh
 ```
 
-### 3. Install and Configure Apache
+3. Run the setup script:
 
 ```bash
-# Install Apache
-sudo ./src/utilities/install/install-apache.sh
-
-# Configure Apache for Nextcloud
-sudo ./src/utilities/configure/configure-apache.sh
+sudo ./laravel-setup-system.sh
 ```
 
-### 4. Install and Configure MariaDB
+### Environment Configuration
+
+Before running the setup, configure your environment variables in the `.env` file at the project root:
 
 ```bash
-# Install MariaDB
-sudo ./src/utilities/install/install-mariadb.sh
+# Database Configuration
+DB_HOST=localhost
+DB_NAME=laravel_db
+DB_USER=deployer
+DB_PASS=Qwerty123!
+DB_ROOT_PASS=!Qwerty123!
 
-# Secure MariaDB installation
-sudo ./src/utilities/configure/configure-mariadb.sh
+# Laravel Configuration
+APP_NAME=Laravel
+APP_ENV=production
+APP_DEBUG=false
+APP_URL=https://your-domain.com  # IMPORTANT: Set your actual domain here
+LARAVEL_PROJECT_NAME=default_laravel_project
+
+# System Configuration
+TIMEZONE=Africa/Nairobi
+DOMAIN_NAME=your-domain.com  # Your actual domain name
+
+# Deployer User Configuration
+DEPLOYER_USER=deployer
+DEPLOYER_PASS=Qwerty123!
+
+# PHP Configuration
+PHP_MEMORY_LIMIT=256M
+PHP_UPLOAD_LIMIT=10M
+PHP_MAX_EXECUTION_TIME=600
+
+# Redis Configuration
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_PASSWORD=
 ```
 
-### 5. Install and Configure PHP
+### Modular Installation
+
+The system is built with a modular approach. You can run individual components:
+
+**Installation Scripts:**
+
+- `src/utilities/install/install-system.sh` - System updates, Nginx, Node.js, and deployer user
+- `src/utilities/install/install-php.sh` - PHP 8.4 and required extensions
+- `src/utilities/install/install-mysql.sh` - MySQL 8.0 installation and configuration
+- `src/utilities/install/install-redis.sh` - Redis 7.0 installation
+- `src/utilities/install/install-composer.sh` - Composer installation
+- `src/utilities/install/install-laravel.sh` - Laravel project creation
+- `src/utilities/install/install-certbot.sh` - Certbot installation for SSL
+
+**Configuration Scripts:**
+
+- `src/utilities/configure/configure-nginx.sh` - Nginx configuration for Laravel
+- `src/utilities/configure/configure-php.sh` - PHP fine-tuning for Laravel
+- `src/utilities/configure/configure-redis.sh` - Redis configuration for Laravel
+- `src/utilities/configure/configure-deployer.sh` - Deployer user setup with SSH keys
+- `src/utilities/configure/configure-system.sh` - System-wide settings (timezone, locale, fail2ban)
+- `src/utilities/configure/configure-certbot.sh` - Certbot configuration
+
+## User Accounts
+
+The system creates a dedicated `deployer` user for managing Laravel applications:
+
+- **Username**: `deployer`
+- **Password**: Configurable via `.env` (default: `Qwerty123!`)
+- **Sudo privileges**: Yes (can restart PHP-FPM without password)
+- **Home directory**: `/home/deployer`
+- **Owns**: `/var/www/html` directory
+- **Database access**: Can access MySQL with password from `.env`
+- **SSH Keys**: Automatically generated with server IP in comment
+- **Git Configuration**: Pre-configured with your credentials
+- **Public SSH Key**: Displayed at end of deployer configuration for GitHub integration
+
+## Database Configuration
+
+- **Root password**: `!Qwerty123!`
+- **Laravel database**: `laravel_db`
+- **Laravel database user**: `deployer` with password `Qwerty123!`
+- **Deployer database user**: `deployer` with password `Qwerty123!`
+- **Remote access**: Enabled for deployer user
+
+## Application Location
+
+- **Laravel project**: `/var/www/html/default_laravel_project`
+- **Public directory**: `/var/www/html/default_laravel_project/public`
+- **Nginx configuration**: `/etc/nginx/sites-available/laravel`
+
+## Service Management
+
+A management script is provided for controlling Laravel services:
 
 ```bash
-# Install PHP and required extensions
-sudo ./src/utilities/install/install-php.sh
-
-# Configure PHP for Nextcloud
-sudo ./src/utilities/configure/configure-php.sh
+laravel-manager {start|stop|restart|status}
 ```
 
-### 6. Install and Configure Redis
+## Post-Installation Steps
+
+1. **Verify Domain Configuration**: Ensure `DOMAIN_NAME` and `APP_URL` in root `.env` are correct
+2. **Set up SSL Certificate**:
+   ```bash
+   sudo certbot --nginx -d your-domain.com
+   ```
+3. **Verify Laravel Configuration**: Check `/var/www/html/{LARAVEL_PROJECT_NAME}/.env` is properly configured
+4. **Run Laravel Migrations**:
+   ```bash
+   sudo -u deployer php artisan migrate --force
+   ```
+5. **Add Deployer SSH Key to GitHub**: Copy the public key displayed at the end of deployer configuration
+6. **Set up Laravel Queues** (if needed):
+   ```bash
+   sudo systemctl enable --now redis-server
+   sudo -u deployer php artisan queue:work --daemon
+   ```
+
+## Environment Variables
+
+All environment variables are managed through the root `.env` file. The system uses a centralized environment loader (`src/core/env-loader.sh`) that:
+
+- Loads variables from the project root `.env` file
+- Provides default values for missing variables
+- Ensures consistency across all installation and configuration scripts
+- Automatically creates a default `.env` if one doesn't exist
+
+Key variables include:
+
+- `APP_ENV=production`
+- `APP_DEBUG=false`
+- `APP_URL` - Must be set to your actual domain (no localhost fallback)
+- `TIMEZONE=Africa/Nairobi`
+- Database connection settings (DB_HOST, DB_NAME, DB_USER, DB_PASS)
+- Redis configuration (REDIS_HOST, REDIS_PORT)
+- Cache and session drivers configured for Redis
+- Queue driver configured for Redis
+
+## Security Features
+
+- UFW firewall configured with secure defaults
+- Proper file permissions for Laravel directories
+- PHP configured with security best practices
+- MySQL secured with strong authentication
+- SSL certificate support via Certbot
+- Restricted access to sensitive files
+
+## Deployment Workflow
+
+As the deployer user, you can deploy Laravel applications:
 
 ```bash
-# Install Redis
-sudo ./src/utilities/install/install-redis.sh
+# Switch to deployer user
+sudo su - deployer
 
-# Configure Redis for Nextcloud
-sudo ./src/utilities/configure/configure-redis.sh
+# Navigate to Laravel project
+cd /var/www/html/default_laravel_project
+
+# Pull latest code
+git pull origin main
+
+# Install/update dependencies
+composer install
+
+# Run migrations
+php artisan migrate --force
+
+# Clear caches
+php artisan config:clear
+php artisan cache:clear
+php artisan route:clear
+php artisan view:clear
+
+# Optimize
+php artisan optimize:clear
+php artisan config:cache
+php artisan route:cache
+php artisan view:cache
+
+# Restart PHP-FPM
+sudo systemctl reload php8.4-fpm
 ```
 
-### 7. Install and Configure Certbot
+## Architecture
 
-```bash
-# Install Certbot for SSL certificates
-sudo ./src/utilities/install/install-certbot.sh
+The system uses a modular architecture:
 
-# Configure SSL certificates
-sudo ./src/utilities/configure/configure-certbot.sh
-```
+### Core Modules (`src/core/`)
 
-### 8. Install and Configure Nextcloud
+- **env-loader.sh**: Centralized environment variable loading
+- **logging.sh**: Consistent logging across all scripts
+- **common-functions.sh**: Shared utility functions
+- **config-manager.sh**: Configuration template management
 
-```bash
-# Install Nextcloud
-sudo ./src/utilities/install/install-nextcloud.sh
+### Installation Scripts (`src/utilities/install/`)
 
-# Configure Nextcloud
-sudo ./src/utilities/configure/configure-nextcloud.sh
-```
+Each script handles a specific component installation:
 
-### 9. Final Configuration
+- System packages and tools
+- PHP 8.4 and extensions
+- MySQL 8.0
+- Redis 7.0
+- Composer
+- Laravel project
+- Certbot
 
-```bash
-# Set up scheduled tasks
-sudo ./src/utilities/configure/configure-cron.sh
-```
+### Configuration Scripts (`src/utilities/configure/`)
 
-## 🎉 Post-Installation
+Each script configures a specific component:
 
-1. Access your Nextcloud instance at: `https://your-domain.com`
-2. Log in with the admin credentials you set during installation
-3. Complete the setup wizard
-4. Install recommended apps from the app store
-5. Set up your users and groups
+- Nginx server blocks
+- PHP settings and PHP-FPM pools
+- Redis configuration
+- System settings (timezone, locale, fail2ban)
+- Deployer user setup
+- Certbot automation
 
-## 🔍 Troubleshooting
+## Maintenance
+
+### Regular Maintenance Tasks
+
+1. **System updates**: Run `sudo apt update && sudo apt upgrade` regularly
+2. **Laravel cache clearing**: Use `php artisan cache:clear` as needed
+3. **Log rotation**: Nginx, PHP, and Laravel logs are automatically rotated
+4. **Database maintenance**: MySQL is configured with automatic optimization
+5. **SSL certificate renewal**: Certbot automatically renews certificates via systemd timer
+6. **Redis monitoring**: Check Redis memory usage and performance
+7. **PHP-FPM monitoring**: Monitor PHP-FPM pool status and adjust as needed
+
+## Deployer User Features
+
+The deployer user is fully configured for Laravel deployments:
+
+### SSH Key Management
+
+- SSH key pair automatically generated if it doesn't exist
+- Public key displayed at end of configuration for easy GitHub integration
+- Server IP automatically detected and used in SSH key comment
+- Root's `authorized_keys` copied to deployer for seamless access
+
+### Git Configuration
+
+- Pre-configured with your Git credentials
+- Ready for repository cloning and pulling
+
+### Deployment Script
+
+A deployment script is available at `/home/deployer/deploy-laravel.sh` that:
+
+- Pulls latest code from Git
+- Installs/updates Composer dependencies
+- Runs database migrations
+- Clears and caches Laravel configurations
+- Optimizes the application
+- Reloads PHP-FPM
+
+### Sudo Privileges
+
+- Can restart/reload PHP-FPM without password prompt
+- Full sudo access for system management
+
+### Laravel Tools
+
+- Laravel Installer installed globally
+- Deployer (deployment tool) available via Composer
+
+## Troubleshooting
 
 ### Common Issues
 
-1. **Permission Issues**
+1. **Permission Issues**:
 
    ```bash
-   sudo chown -R www-data:www-data /var/www/nextcloud/
-   sudo chmod -R 755 /var/www/nextcloud/
+   sudo chown -R deployer:deployer /var/www/html/default_laravel_project
+   sudo chmod -R 755 /var/www/html/default_laravel_project
    ```
 
-2. **Check Service Status**
+2. **Service Status**:
 
    ```bash
-   sudo systemctl status apache2
-   sudo systemctl status mariadb
+   sudo systemctl status nginx
+   sudo systemctl status php8.4-fpm
+   sudo systemctl status mysql
    sudo systemctl status redis-server
    ```
 
-3. **View Logs**
+3. **Check Logs**:
 
    ```bash
-   # Apache error log
-   sudo tail -f /var/log/apache2/error.log
+   # Laravel logs
+   sudo tail -f /var/www/html/default_laravel_project/storage/logs/laravel.log
 
-   # Nextcloud log
-   sudo tail -f /var/www/nextcloud/data/nextcloud.log
+   # Nginx logs
+   sudo tail -f /var/log/nginx/laravel_error.log
+
+   # PHP-FPM logs
+   sudo tail -f /var/log/php8.4-fpm.log
    ```
 
-4. **Check Firewall**
-   ```bash
-   sudo ufw status
-   sudo ufw allow 'Apache Full'
-   sudo ufw allow OpenSSH
-   ```
+## Code Quality
 
-### Getting Help
+The codebase has been reviewed and improved:
 
-If you encounter any issues, please check the following:
+- ✅ Removed duplicate function definitions
+- ✅ Standardized logging functions (all use `log_*` instead of `print_*`)
+- ✅ Fixed environment variable loading consistency
+- ✅ Corrected script path calculations
+- ✅ Fixed undefined variable references
+- ✅ Improved error handling and validation
+- ✅ Enhanced documentation and comments
 
-- Verify all services are running
-- Check file permissions
-- Review the logs mentioned above
-- Ensure your domain's DNS is properly configured
+## Recent Improvements
 
-### Troubleshooting
+- **Centralized Environment Management**: All scripts now use the unified `load_environment()` function
+- **SSH Key Management**: Automatic SSH key generation with server IP detection
+- **Git Configuration**: Pre-configured deployer user with your credentials
+- **Redis Integration**: Full Redis support for caching, sessions, and queues
+- **Improved Error Handling**: Better error messages and validation throughout
+- **Code Cleanup**: Removed duplicate functions and standardized patterns
 
-- **Firewall Warning**: The firewall configuration warning during system installation is non-critical and can be ignored.
-- **Path Issues**: If you encounter path-related errors, make sure to run the path fix command in step 4.
-- **Logs**: Check logs in the `logs/` directory for detailed error information.
+## Support
 
----
+For support, feature requests, or contributions, please contact the project maintainers.
 
-## 🚀 Nextcloud Enterprise-Grade Deployment Kit
+## License
 
-A comprehensive, production-ready Nextcloud deployment solution with enterprise-grade optimizations, security configurations, and automation scripts.
-
-> **Developer**: Wagura Maurice  
-> **Contact**: [wagura465@gmail.com](mailto:wagura465@gmail.com)  
-> **GitHub**: [github.com/wagura-maurice/nextcloud-setup](https://github.com/wagura-maurice/nextcloud-setup)
-
-## 📋 Table of Contents
-
-### Getting Started
-
-- [✨ Features](#-features)
-- [🚀 Quick Start](#-quick-start)
-- [📦 Installation](#-installation)
-
-### Core Components
-
-- [🏗️ Architecture](#-architecture)
-- [⚙️ Configuration](#-configuration)
-- [🔐 Security](#-security-features)
-
-### Data Management
-
-- [💾 Backup](#-backup)
-- [🔄 Restore](#-restore)
-- [⏰ Scheduled Backups](#-scheduled-backups)
-- [☁️ Cloud Storage](#-cloudflare-r2-integration)
-
-### Advanced
-
-- [⚡ Performance Tuning](#-performance-optimization)
-- [🔄 Background Tasks](#-background-tasks--cron-configuration)
-- [📚 Additional Resources](#-additional-resources)
-
-### Support
-
-- [❓ FAQ](#-faq)
-- [📜 License](#-license)
-- [📞 Support](#-support)
-
-## 🌟 Features
-
-- **Automated Installation**: Single-command deployment of Nextcloud with all dependencies
-- **Performance Optimized**: Pre-configured with PHP 8.4, OPcache, and Redis caching
-- **Security Hardened**: Includes security headers, SSL configuration, and best practices
-- **Production Ready**: Configured for high availability and reliability
-- **Maintenance Tools**: Built-in scripts for backup, updates, and monitoring
-- **Resource Efficient**: Optimized for minimal resource usage while maintaining performance
-- **Scalable**: Configuration that grows with your needs from small to large deployments
-
-## 🏗️ Architecture
-
-```
-nextcloud-setup/
-├── scripts/                  # Deployment and maintenance scripts
-│   ├── install-nextcloud.sh  # Main installation script
-│   ├── backup-nextcloud.sh   # Backup script with incremental support
-│   ├── restore-nextcloud.sh  # Restore script for full/incremental backups
-│   └── configure-php.sh      # PHP configuration helper
-├── configs/                  # Configuration files
-│   ├── apache-nextcloud.conf # Apache virtual host configuration
-│   ├── php-settings.ini      # PHP-FPM performance tuning
-│   ├── install-config.conf   # Installation parameters
-│   ├── backup-config.conf    # Backup configuration
-│   └── restore-config.conf   # Restore configuration
-└── docs/                     # Documentation
-    └── installation-guide.md # Detailed setup instructions
-```
-
-## 🖥️ System Requirements
-
-### Hardware Requirements
-
-| Resource    | Minimum          | Recommended          | Enterprise          |
-| ----------- | ---------------- | -------------------- | ------------------- |
-| **OS**      | Ubuntu 22.04 LTS | Ubuntu 22.04 LTS     | Ubuntu 22.04 LTS    |
-| **CPU**     | 1 core (2.0 GHz) | 2-4 cores (2.4 GHz+) | 8+ cores (3.0 GHz+) |
-| **RAM**     | 2GB              | 4-8GB                | 16GB+               |
-| **Storage** | 20GB SSD         | 40GB+ SSD            | 100GB+ NVMe         |
-| **Network** | 100 Mbps         | 1 Gbps               | 1 Gbps+             |
-| **Swap**    | = RAM (min 2GB)  | = RAM (min 4GB)      | 8GB+                |
-
-### Software Requirements
-
-- **Web Server**: Apache 2.4+ with mod_php or PHP-FPM
-- **Database**: MySQL 8.0+ or MariaDB 10.5+
-- **PHP**: 8.2+ with required extensions
-- **Cache**: Redis 6.0+ recommended
-- **SSL**: Let's Encrypt certificate (auto-configured)
-
-### Additional Requirements
-
-- **Domain Name**: Required for SSL certificates
-- **Static IP**: Recommended for production environments
-- **Backup Storage**: Cloud storage (R2, S3) or external storage for backups
-- **Firewall**: Properly configured firewall (UFW recommended)
-- **Monitoring**: Basic server monitoring tools
-
-## 🛠️ System Preparation
-
-Before running the main setup, you'll need to prepare your system by running the `prepare-system.sh` script. This script sets up the required directory structure and permissions.
-
-### Prerequisites
-
-- Linux-based system (Ubuntu/Debian recommended)
-- Sudo privileges
-- Basic system utilities (git, curl, etc.)
-
-### Running the Preparation Script
-
-1. **Make the script executable** (if not already):
-
-   ```bash
-   chmod +x prepare-system.sh
-   ```
-
-2. **Run the script with sudo** (requires root privileges):
-   ```bash
-   sudo ./prepare-system.sh
-   ```
-
-### What the Script Does
-
-1. **Creates Required Directories**:
-
-   - `logs/`: For storing system and application logs
-   - `config/`: For configuration files
-   - `data/`: For application data
-
-2. **Sets Up Permissions**:
-
-   - Ensures proper ownership and permissions for web server access
-   - Creates necessary system directories
-   - Sets up log rotation
-
-3. **Environment Setup**:
-   - Creates a `.env` file from `.env.example` if it doesn't exist
-   - Sets up proper permissions for sensitive files
-
-### Troubleshooting
-
-- **Permission Denied Errors**: Ensure you're running the script with `sudo`
-- **Missing Dependencies**: The script will attempt to install required packages automatically
-- **Logs**: Check the log file in `logs/prepare-*.log` for detailed output
-
-## 🚀 Quick Start
-
-### Prerequisites
-
-- Ubuntu 22.04 LTS server (minimal installation recommended)
-- Root or sudo access
-- Git
-- Domain name pointing to your server (for SSL certificates)
-- Minimum 2GB RAM (4GB+ recommended for production)
-
-### 1. Clone and Prepare
-
-```bash
-# Clone the repository
-git clone https://github.com/wagura-maurice/nextcloud-setup.git
-cd nextcloud-setup
-
-# Make the preparation script executable and run it
-chmod +x prepare-system.sh
-sudo ./prepare-system.sh
-```
-
-### 2. Configure Your Installation
-
-Edit the `.env` file to set your preferences:
-
-```bash
-# Copy the example config if it doesn't exist
-cp .env.example .env
-
-# Edit the configuration
-nano .env  # or use your preferred text editor
-```
-
-Key settings to configure:
-
-- `NEXTCLOUD_DOMAIN`: Your domain name (e.g., cloud.yourdomain.com)
-- `NEXTCLOUD_ADMIN_USER`: Desired admin username
-- `NEXTCLOUD_ADMIN_PASSWORD`: Strong admin password
-- `MYSQL_ROOT_PASSWORD`: Secure MySQL root password
-- `NEXTCLOUD_DB_PASSWORD`: Secure database password for Nextcloud
-
-### 3. Run the Installation
-
-```bash
-# Start the installation process
-./setup-nextcloud
-```
-
-The installer will:
-
-1. Install all required dependencies
-2. Configure the web server and database
-3. Set up SSL certificates (Let's Encrypt)
-4. Install and configure Nextcloud
-5. Optimize system settings for performance
-
-### 4. Access Your Nextcloud Instance
-
-Once installation completes, access your Nextcloud at:
-
-```
-https://cloud.yourdomain.com
-```
-
-### 5. Post-Installation
-
-1. **Verify Installation**:
-
-   ```bash
-   # Check system status
-   ./manage-nextcloud status
-   ```
-
-2. **Regular Maintenance**:
-
-   ```bash
-   # Perform system updates and maintenance
-   ./manage-nextcloud maintenance
-   ```
-
-3. **Backup Your Data**:
-   ```bash
-   # Create a complete backup
-   ./manage-nextcloud backup
-   ```
-
-### 6. Getting Help
-
-- View available commands:
-  ```bash
-  ./manage-nextcloud help
-  ```
-- Check logs:
-  ```bash
-  sudo tail -f /var/log/nextcloud/nextcloud.log
-  ```
-
-## 📋 Project Structure
-
-```
-/
-├── src/                    # Source code
-│   ├── bin/               # Main executable scripts
-│   │   ├── setup-nextcloud.sh
-│   │   └── manage-nextcloud.sh
-│   └── utilities/         # Supporting scripts
-│       ├── install/       # Installation scripts
-│       └── configure/     # Configuration scripts
-├── setup-nextcloud        # Launcher for setup
-├── manage-nextcloud       # Launcher for management
-└── prepare-system.sh      # System preparation script
-```
-
-### Main Commands:
-
-- `./prepare-system.sh` - Initial system preparation (run once)
-- `./setup-nextcloud` - Install and configure Nextcloud
-- `./manage-nextcloud` - Manage and maintain your installation
-
-## 🛠️ Script Details
-
-### Setup Nextcloud (`./setup-nextcloud`)
-
-Launcher for the main setup script (`src/bin/setup-nextcloud.sh`). Handles the complete installation and configuration of:
-
-- System dependencies
-- Web server (Apache/Nginx)
-- PHP and extensions
-- Database (MariaDB/PostgreSQL)
-- Redis caching
-- SSL certificates (Let's Encrypt)
-- Nextcloud core installation
-
-### Nextcloud Manager (`./manage-nextcloud`)
-
-Launcher for the management script (`src/bin/manage-nextcloud.sh`). Provides tools for:
-
-- Backup and restore operations
-- System maintenance
-- Performance optimization
-- Security checks
-- Monitoring and logging
-
-### 2. Configure Your Installation
-
-Copy the example configuration file and edit it with your settings:
-
-```bash
-cp config/nextcloud.conf.example config/nextcloud.conf
-nano config/nextcloud.conf
-```
-
-Update the following key settings at minimum:
-
-- `NEXTCLOUD_URL`: Your domain name
-- `ADMIN_EMAIL`: Your email address
-- `DB_PASS` and `DB_ROOT_PASS`: Strong database passwords
-- `NEXTCLOUD_ADMIN_PASS`: A strong admin password
-
-### 3. Run the Installation
-
-Make the setup script executable and start the installation:
-
-```bash
-chmod +x nextcloud-setup
-./nextcloud-setup install all
-```
-
-This will install and configure all components in the correct order.
-
-### 4. Access Your Nextcloud Instance
-
-Once the installation is complete, open your web browser and navigate to:
-
-````
-
-The Nextcloud CLI tool provides a unified interface for all management tasks:
-
-### Install Specific Components
-```bash
-{{ ... }}
-# Install just the database
-./nextcloud-setup install mariadb
-
-# Install Apache and PHP
-./nextcloud-setup install apache php
-````
-
-### Configure Components
-
-```bash
-# Configure all components
-./nextcloud-setup configure all
-
-# Configure just PHP and Redis
-./nextcloud-setup configure php redis
-```
-
-### Backup and Restore
-
-```bash
-# Create a backup
-./nextcloud-setup backup
-
-# Restore from backup
-./nextcloud-setup restore /path/to/backup.tar.gz
-```
-
-### Maintenance Tasks
-
-```bash
-# Run maintenance tasks
-./nextcloud-setup maintenance
-
-# Update Nextcloud
-./nextcloud-setup update
-
-# Monitor Nextcloud
-./nextcloud-setup monitor
-```
-
-### Help and Documentation
-
-```bash
-# Show help
-./nextcloud-setup help
-```
-
-- Domain name with DNS properly configured
-- SSH access to the server
-
-### Installation
-
-1. **Clone and Prepare**
-
-   ```bash
-   # Clone the repository
-   git clone https://github.com/wagura-maurice/nextcloud-setup.git
-   cd nextcloud-setup
-
-   # Run the system preparation script
-   sudo ./prepare-system.sh
-   ```
-
-2. **Run System Installation**
-
-   ```bash
-   # Make all installation scripts executable
-   sudo chmod +x src/utilities/install/*.sh
-
-   # Install system dependencies and core components
-   sudo ./src/utilities/install/install-system.sh
-
-   # Install and configure Apache
-   sudo ./src/utilities/install/install-apache.sh
-
-   # Install and configure MariaDB
-   sudo ./src/utilities/install/install-mariadb.sh
-
-   # Install and configure PHP
-   sudo ./src/utilities/install/install-php.sh
-
-   # Install and configure Redis
-   sudo ./src/utilities/install/install-redis.sh
-
-   # Install and configure Certbot for SSL
-   sudo ./src/utilities/install/install-certbot.sh
-
-   # Install Nextcloud
-   sudo ./src/utilities/install/install-nextcloud.sh
-   ```
-
-3. **Run Configuration Scripts**
-   After installation completes, configure all components:
-
-   ```bash
-   # Make all configuration scripts executable
-   sudo chmod +x src/utilities/configure/*.sh
-
-   # Configure system settings
-   sudo ./src/utilities/configure/configure-system.sh
-
-   # Configure Apache web server
-   sudo ./src/utilities/configure/configure-apache.sh
-
-   # Configure MariaDB database
-   sudo ./src/utilities/configure/configure-mariadb.sh
-
-   # Configure PHP settings
-   sudo ./src/utilities/configure/configure-php.sh
-
-   # Configure Redis caching
-   sudo ./src/utilities/configure/configure-redis.sh
-
-   # Configure SSL certificates with Certbot
-   sudo ./src/utilities/configure/configure-certbot.sh
-
-   # Configure scheduled tasks
-   sudo ./src/utilities/configure/configure-cron.sh
-
-   # Finalize Nextcloud configuration
-   sudo ./src/utilities/configure/configure-nextcloud.sh
-   ```
-
-4. **Complete the Setup**
-   Follow the on-screen prompts to complete your Nextcloud installation. The scripts will automatically:
-
-   - Configure all installed components
-   - Set up security certificates
-   - Optimize the server for Nextcloud
-   - Set up Redis for caching
-   - Configure scheduled maintenance tasks
-   - Provide you with login details
-
-5. **Access Your Nextcloud**
-   After installation, access your Nextcloud instance at:
-   ```
-   https://cloud.e-granary.com
-   ```
-   Use the admin credentials provided during installation.
-
-## 💾 Backup
-
-### Backup Script (`backup-nextcloud.sh`)
-
-#### Features
-
-- Full and incremental backup support
-- Database backup with transaction support
-- Cloudflare R2 storage integration
-- Configurable retention policy
-- Detailed logging and error handling
-
-#### Usage
-
-```bash
-# Run a full backup
-sudo ./scripts/backup-nextcloud.sh
-
-# Force a full backup (ignore incremental)
-sudo ./scripts/backup-nextcloud.sh --full
-
-# Run with custom config file
-sudo ./scripts/backup-nextcloud.sh --config /path/to/backup-config.conf
-```
-
-#### Configuration (`configs/backup-config.conf`)
-
-```ini
-# Backup Configuration
-BACKUP_DIR="/var/nextcloud_backups"
-RETAIN_DAYS=30
-
-# Database Configuration
-DB_NAME="nextcloud"
-DB_USER="nextcloud"
-DB_PASS="your_db_password"
-
-# Cloudflare R2 Configuration (optional)
-R2_ACCESS_KEY_ID=""
-R2_SECRET_ACCESS_KEY=""
-R2_BUCKET=""
-R2_ENDPOINT=""
-
-# What to backup (true/false)
-BACKUP_DATA=true
-BACKUP_CONFIG=true
-BACKUP_APPS=true
-BACKUP_DATABASE=true
-
-# Email notifications (optional)
-NOTIFICATION_EMAIL=""
-```
-
-## 🔄 Restore
-
-### Restore Script (`restore-nextcloud.sh`)
-
-#### Features
-
-- Restores both full and incremental backups
-- Handles database restoration
-- Maintains file permissions
-- Pre/Post restore hooks
-- Detailed logging
-
-#### Usage
-
-```bash
-# Restore from a local backup
-sudo ./scripts/restore-nextcloud.sh /path/to/backup.tar.gz
-
-# Restore from R2 storage
-sudo ./scripts/restore-nextcloud.sh s3://bucket-name/backup.tar.gz
-
-# Run with custom config file
-sudo ./scripts/restore-nextcloud.sh --config /path/to/restore-config.conf /path/to/backup
-```
-
-#### Configuration (`configs/restore-config.conf`)
-
-```ini
-# Database Configuration
-DB_NAME="nextcloud"
-DB_USER="nextcloud"
-DB_PASS="your_db_password"
-
-# Paths
-NEXTCLOUD_ROOT="/var/www/nextcloud"
-NEXTCLOUD_DATA="${NEXTCLOUD_ROOT}/data"
-
-# What to restore (true/false)
-RESTORE_DATA=true
-RESTORE_CONFIG=true
-RESTORE_APPS=true
-RESTORE_DATABASE=true
-
-# Service Control
-RESTART_SERVICES=true
-
-# Logging
-LOG_FILE="/var/log/nextcloud/restore.log"
-LOG_LEVEL="INFO"  # DEBUG, INFO, WARNING, ERROR
-```
-
-## ⏰ Scheduled Backups
-
-To set up automatic daily backups:
-
-1. Edit the crontab:
-
-   ```bash
-   sudo crontab -e
-   ```
-
-2. Add the following line to run daily at 2 AM:
-
-   ```
-   0 2 * * * /path/to/nextcloud-setup/scripts/backup-nextcloud.sh
-   ```
-
-3. To receive email notifications, add your email:
-   ```
-   MAILTO=wagura465@gmail.com
-   0 2 * * * /path/to/nextcloud-setup/scripts/backup-nextcloud.sh
-   ```
-
-## 🔧 Advanced Configuration
-
-### Customizing the Installation
-
-Edit the configuration files before running the scripts:
-
-```bash
-# Installation configuration
-nano configs/install-config.conf
-
-# Backup configuration
-nano configs/backup-config.conf
-
-# Restore configuration
-nano configs/restore-config.conf
-```
-
-### Available Configuration Options
-
-- **Installation**: Database settings, domain configuration, SSL options
-- **Backup**: Retention policy, cloud storage, notification settings
-- **Restore**: Selective restoration, service control, logging options
-- **Performance**: PHP and Apache tuning, caching configuration
-- **Security**: Access controls, file permissions, encryption
-
-## 🛡️ Security Features
-
-- Automatic SSL certificate provisioning with Let's Encrypt
-- Security headers (HSTS, CSP, XSS Protection)
-- PHP security optimizations
-- Redis-based file locking and caching
-- Regular security updates and maintenance scripts
-
-## ☁️ Cloudflare R2 Integration
-
-For backing up to Cloudflare R2 (S3-compatible storage), you'll need to install the AWS CLI tool and configure it with your R2 credentials.
-
-### Prerequisites
-
-1. **Install AWS CLI**
-
-   ```bash
-   # Install AWS CLI v2 (recommended)
-   curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-   unzip awscliv2.zip
-   sudo ./aws/install
-
-   # Verify installation
-   aws --version
-   ```
-
-2. **Configure AWS CLI for R2**
-
-   ```bash
-   aws configure
-   ```
-
-   When prompted, enter:
-
-   - **AWS Access Key ID**: Your R2 Access Key ID
-   - **AWS Secret Access Key**: Your R2 Secret Access Key
-   - **Default region name**: `auto` (or your preferred region)
-   - **Default output format**: `json`
-
-3. **Add R2 Endpoint to AWS Config**
-   Edit `~/.aws/config` and add:
-   ```ini
-   [profile default]
-   region = auto
-   s3 =
-     endpoint_url = https://<your-account-id>.r2.cloudflarestorage.com
-   s3_use_path_style = true
-   ```
-   Replace `<your-account-id>` with your Cloudflare account ID.
-
-### Configuration in Backup Script
-
-Update your `backup-config.conf` with the following R2 settings:
-
-```ini
-# Cloudflare R2 Configuration
-R2_ACCESS_KEY_ID="your-r2-access-key"
-R2_SECRET_ACCESS_KEY="your-r2-secret-key"
-R2_BUCKET="your-bucket-name"
-R2_ENDPOINT="https://<your-account-id>.r2.cloudflarestorage.com"
-R2_REGION="auto"
-```
-
-### Testing R2 Connection
-
-Verify your R2 setup with:
-
-```bash
-# List buckets
-aws s3 ls --endpoint-url https://<your-account-id>.r2.cloudflarestorage.com
-
-# Test upload
-echo "test" > test.txt
-aws s3 cp test.txt s3://your-bucket-name/ --endpoint-url https://<your-account-id>.r2.cloudflarestorage.com
-```
-
-## 🏗️ Architecture
-
-### PHP-FPM with Apache
-
-This deployment kit uses PHP 8.4 FPM (FastCGI Process Manager) with Apache's `mod_proxy_fcgi` module, providing several advantages over traditional `mod_php`:
-
-### Key Components
-
-1. **Apache with `mod_proxy_fcgi`**
-
-   - Handles HTTP/HTTPS requests
-   - Serves static files directly
-   - Proxies PHP requests to PHP-FPM via FastCGI
-
-2. **PHP 8.4 FPM**
-
-   - Runs as a separate service with its own process manager
-   - Uses Unix domain sockets for communication
-   - Configurable process management (pm = dynamic/ondemand)
-
-3. **Performance Optimizations**
-   - OPcache with JIT compilation
-   - Realpath caching
-   - Optimized PHP-FPM process manager settings
-   - Redis for session and file locking
-
-### Benefits Over Traditional mod_php
-
-1. **Better Resource Management**
-
-   - PHP processes run independently of Apache threads
-   - Memory is not tied to Apache processes
-   - More efficient handling of concurrent requests
-
-2. **Improved Security**
-
-   - PHP runs as a separate user (www-data)
-   - Better isolation between web server and PHP processes
-   - Reduced attack surface compared to mod_php
-
-3. **Enhanced Performance**
-
-   - Lower memory usage per request
-   - Better handling of high traffic loads
-   - More stable under heavy load
-
-4. **Flexibility**
-   - Easier to scale PHP processes independently
-   - Can run PHP on a different server if needed
-   - Better support for modern PHP features
-
-### Configuration Highlights
-
-- PHP-FPM pool configuration optimized for Nextcloud
-- Apache MPM Event with optimized settings
-- Proper file permissions and security hardening
-- Redis-based session and file locking
-
-## 🔄 Background Tasks & Cron Configuration
-
-Nextcloud requires regular background tasks for maintenance and optimal performance. This setup implements a robust solution using both systemd timers and traditional cron jobs.
-
-### 1. Systemd Timer (Recommended)
-
-- **Service**: `nextcloudcron.service`
-- **Timer**: `nextcloudcron.timer`
-- **Schedule**: Runs every 5 minutes
-- **User**: Runs as root with proper permissions
-
-Key Features:
-
-- Automatic startup on system boot
-- Proper process isolation
-- Logging and monitoring via journald
-- Automatic retry on failure
-
-### 2. Traditional Cron Job
-
-- **User**: www-data
-- **Schedule**: `*/5 * * * *` (Every 5 minutes)
-- **Command**: `php -f /var/www/nextcloud/cron.php`
-
-### Verification
-
-After installation, verify the cron setup with:
-
-```bash
-# Check systemd timer status
-systemctl status nextcloudcron.timer
-
-# Check when the timer will trigger next
-systemctl list-timers | grep nextcloud
-
-# View cron jobs for www-data
-sudo -u www-data crontab -l
-```
-
-## 🚀 Performance Optimizations
-
-- **PHP 8.4 with OPcache and JIT**
-
-  - OPcache with 256MB memory
-  - Optimized realpath cache settings
-  - JIT compilation for better performance
-
-- **Caching Layers**
-
-  - Redis for session handling
-  - File locking via Redis
-  - APCu for local caching (if available)
-
-- **Web Server Optimizations**
-
-  - HTTP/2 support
-  - Brotli and Gzip compression
-  - Proper cache headers for static assets
-
-- **Database Optimizations**
-  - InnoDB buffer pool configuration
-  - Query cache settings
-  - Connection pooling
-
-## 🤝 Support
-
-For support, feature requests, or contributions, please contact:
-
-- **Wagura Maurice**
-- Email: [wagura465@gmail.com](mailto:wagura465@gmail.com)
-
-## 📜 License
-
-This project is open-source and available under the MIT License.
+This project is open source and available under the MIT License.

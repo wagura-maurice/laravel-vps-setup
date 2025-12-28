@@ -1,9 +1,9 @@
 #!/bin/bash
-# Launcher script for Nextcloud setup
-# This points to the actual script in src/bin/
+# Launcher script for Laravel setup
+# This points to the actual script in the project root
 
 # Get the directory where this script is located
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Execute the main setup script with the correct working directory
-(cd "$SCRIPT_DIR" && ./src/bin/setup-nextcloud.sh "$@")
+(cd "$SCRIPT_DIR" && ./laravel-setup-system.sh "$@")

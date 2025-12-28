@@ -66,9 +66,8 @@ fi
 echo "Creating system directories..."
 
 # Create project-specific system directories under /var
-create_dir "/var/www/nextcloud" "www-data:www-data" "750"
-create_dir "/var/nextcloud" "www-data:www-data" "750"
-create_dir "/var/backups/nextcloud" "root:root" "750"
+create_dir "/var/www/html" "www-data:www-data" "750"
+create_dir "/var/laravel" "www-data:www-data" "750"
 
 # Set up Let's Encrypt directories if they don't exist
 echo "Setting up Let's Encrypt directories..."
@@ -146,52 +145,52 @@ EOL
 chmod +x /etc/letsencrypt/renewal-hooks/pre/stop-webserver
 chmod +x /etc/letsencrypt/renewal-hooks/post/start-webserver
 
-# Ensure setup-nextcloud.sh is executable when cloned
-echo "Setting up Nextcloud setup script..."
-if [ -f "${PROJECT_ROOT}/src/bin/setup-nextcloud.sh" ]; then
+# Ensure laravel-setup-system.sh is executable when cloned
+echo "Setting up Laravel setup script..."
+if [ -f "${PROJECT_ROOT}/laravel-setup-system.sh" ]; then
     # Make the script executable
-    chmod +x "${PROJECT_ROOT}/src/bin/setup-nextcloud.sh"
+    chmod +x "${PROJECT_ROOT}/laravel-setup-system.sh"
     
     # Create a launcher script in the project root for setup
-    cat > "${PROJECT_ROOT}/setup-nextcloud" << 'EOL'
+    cat > "${PROJECT_ROOT}/setup-laravel" << 'EOL'
 #!/bin/bash
-# Launcher script for nextcloud-setup
+# Launcher script for laravel-setup
 # This file is auto-generated - do not edit directly
 
 # Get the directory where this script is located
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Execute the main setup script with the correct working directory
-(cd "$SCRIPT_DIR" && ./src/bin/setup-nextcloud.sh "$@")
+(cd "$SCRIPT_DIR" && ./laravel-setup-system.sh "$@")
 EOL
     
     # Make the setup launcher executable
-    chmod +x "${PROJECT_ROOT}/setup-nextcloud"
+    chmod +x "${PROJECT_ROOT}/setup-laravel"
     
-    # Ensure manage-nextcloud.sh is executable
-    chmod +x "${PROJECT_ROOT}/src/bin/manage-nextcloud.sh"
+    # Ensure laravel-manager is executable
+    chmod +x "${PROJECT_ROOT}/laravel-manager"
     
     # Create a launcher script for management
-    cat > "${PROJECT_ROOT}/manage-nextcloud" << 'EOL'
+    cat > "${PROJECT_ROOT}/manage-laravel" << 'EOL'
 #!/bin/bash
-# Launcher script for nextcloud-management
+# Launcher script for laravel-management
 # This file is auto-generated - do not edit directly
 
 # Get the directory where this script is located
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Execute the management script with the correct working directory
-(cd "$SCRIPT_DIR" && ./src/bin/manage-nextcloud.sh "$@")
+(cd "$SCRIPT_DIR" && ./laravel-manager "$@")
 EOL
     
     # Make the management launcher executable
-    chmod +x "${PROJECT_ROOT}/manage-nextcloud"
+    chmod +x "${PROJECT_ROOT}/manage-laravel"
     
-    echo "Nextcloud setup is ready to use. Run the following commands:"
-    echo "  ./setup-nextcloud        # Run the setup"
-    echo "  ./manage-nextcloud       # Manage your installation"
+    echo "Laravel setup is ready to use. Run the following commands:"
+    echo "  ./setup-laravel        # Run the setup"
+    echo "  ./manage-laravel       # Manage your installation"
 else
-    echo "Warning: setup-nextcloud.sh not found in ${PROJECT_ROOT}/src/bin/"
+    echo "Warning: laravel-setup-system.sh not found in ${PROJECT_ROOT}/"
 fi
 
 echo "=== System Preparation Complete ==="
@@ -200,10 +199,9 @@ echo "\n✅ System preparation completed successfully!"
 echo "\nNext steps:"
 echo "1. Configure your domain in the .env file"
 echo "2. Run the setup script:"
-echo "   sudo -E ./setup-nextcloud"
+echo "   sudo -E ./setup-laravel"
 echo "\nFor production use, ensure you have:"
 echo "- A domain name pointing to this server"
 echo "- Sufficient system resources (2GB+ RAM recommended)"
-echo "- Backups of any existing data"
 
 exit 0
