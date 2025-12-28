@@ -1,13 +1,13 @@
 #!/bin/bash
 
-# Logging Functions for Nextcloud Setup and Management
+# Logging Functions for Laravel Setup and Management
 # This script provides consistent logging functionality across all scripts
 
 # Set default log level if not set
 : "${LOG_LEVEL:="INFO"}"
 : "${PROJECT_ROOT:=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
 : "${LOG_DIR:=${PROJECT_ROOT}/logs}"
-: "${LOG_FILE:=${LOG_DIR}/nextcloud-setup-$(date +%Y%m%d%H%M%S).log}"
+: "${LOG_FILE:=${LOG_DIR}/laravel-setup-$(date +%Y%m%d%H%M%S).log}"
 
 # Ensure log directory exists
 mkdir -p "${LOG_DIR}"
@@ -109,7 +109,7 @@ log() {
         if [ -z "${LOG_FILE:-}" ]; then
             local fallback_timestamp
             fallback_timestamp="$(date '+%Y-%m-%d %H:%M:%S' 2>/dev/null || echo 'timestamp-error')"
-            LOG_FILE="/tmp/nextcloud-setup-$(date +%s).log"
+            LOG_FILE="/tmp/laravel-setup-$(date +%s).log"
             echo "[${fallback_timestamp}] [WARNING] LOG_FILE not set, using fallback: ${LOG_FILE}" >&2
         fi
         
@@ -181,7 +181,7 @@ run_command() {
 # Initialize logging
 init_logging() {
     # Ensure LOG_FILE is set
-    : "${LOG_FILE:=${LOG_DIR:-/tmp}/nextcloud-setup-$(date +%Y%m%d%H%M%S).log}"
+    : "${LOG_FILE:=${LOG_DIR:-/tmp}/laravel-setup-$(date +%Y%m%d%H%M%S).log}"
     export LOG_FILE
     
     # Create log directory if it doesn't exist
@@ -194,7 +194,7 @@ init_logging() {
     # Create log file with appropriate permissions
     if ! touch "$LOG_FILE" 2>/dev/null; then
         echo "[$(date '+%Y-%m-%d %H:%M:%S' 2>/dev/null || echo 'timestamp-error')] [WARNING] Failed to create log file: $LOG_FILE" >&2
-        LOG_FILE="/tmp/nextcloud-setup-$(date +%s).log"
+        LOG_FILE="/tmp/laravel-setup-$(date +%s).log"
         export LOG_FILE
         if ! touch "$LOG_FILE" 2>/dev/null; then
             echo "[$(date '+%Y-%m-%d %H:%M:%S' 2>/dev/null || echo 'timestamp-error')] [ERROR] Failed to create fallback log file: $LOG_FILE" >&2
@@ -210,7 +210,7 @@ init_logging() {
     
     # Log script start
     {
-        echo "[${timestamp}] [INFO] === Logging initialized ==="
+        echo "[${timestamp}] [INFO] === Laravel Setup Logging initialized ==="
         echo "[${timestamp}] [INFO] Project Root: ${PROJECT_ROOT:-Not set}"
         echo "[${timestamp}] [INFO] Log file: ${LOG_FILE}"
         echo "[${timestamp}] [INFO] Log level: ${LOG_LEVEL:-INFO} (${LOG_LEVEL_NUM:-1})"
@@ -235,68 +235,6 @@ export LOG_LEVEL LOG_LEVEL_NUM
 
 # Export all logging functions
 export -f log log_debug log_info log_warning log_error run_command init_logging
-
-# Log a message with timestamp and log level
-# Usage: log <level> <message> [exit_code]
-log() {
-    local level="$1"
-    local message="${2:-}"
-    local exit_code="${3:-}"
-    
-    # Ensure we have a valid timestamp
-    local timestamp
-    timestamp="$(date '+%Y-%m-%d %H:%M:%S' 2>/dev/null || echo 'timestamp-error')"
-    
-    # Ensure message is not empty
-    if [ -z "$message" ]; then
-        message="(empty message)"
-    fi
-    
-    # Map level to numeric value
-    local level_num
-    level_num=$(map_log_level "$level" 2>/dev/null || echo 1)  # Default to INFO level if mapping fails
-    
-    # Create log entry with timestamp
-    local log_entry="[${timestamp}] [${level^^}] ${message}"
-    
-    # Only process if level is at or above the current log level
-    if [[ $level_num -ge $LOG_LEVEL_NUM ]]; then
-        # Print to console with appropriate color
-        case $level_num in
-            $LOG_LEVEL_DEBUG) echo -e "\033[0;36m$log_entry\033[0m" ;;
-            $LOG_LEVEL_INFO) echo -e "\033[0;32m$log_entry\033[0m" ;;
-            $LOG_LEVEL_WARNING) echo -e "\033[0;33m$log_entry\033[0m" >&2 ;;
-            $LOG_LEVEL_ERROR) echo -e "\033[0;31m$log_entry\033[0m" >&2 ;;
-            *) echo "$log_entry" ;;
-        esac
-        
-        # Append to log file
-        echo "$log_entry" >> "$LOG_FILE"
-    fi
-    
-    # Always log errors to stderr and exit if exit code provided
-    if [[ $level_num -ge $LOG_LEVEL_ERROR ]]; then
-        if [[ -n "$exit_code" ]]; then
-            exit "$exit_code"
-        fi
-    fi
-}
-log_info() { log "$LOG_LEVEL_INFO" "$@"; }
-log_warning() { log "$LOG_LEVEL_WARNING" "$@"; }
-log_error() { 
-    log "$LOG_LEVEL_ERROR" "$@" 
-    exit 1
-}
-# Log command execution
-run_command() {
-    local cmd="$*"
-    log_info "Executing: $cmd"
-    if ! output=$($cmd 2>&1); then
-        log_error "Command failed: $cmd\n$output"
-    fi
-    log_debug "Command output: $output"
-    echo "$output"
-}
 
 # Log section header
 log_section() {

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Configuration Manager for Nextcloud Installation
+# Configuration Manager for Laravel Installation
 # This script provides functions to load and apply configuration templates
 # with proper error handling and logging
 
@@ -17,24 +17,23 @@ readonly CONFIG_VALIDATION_PATTERNS=(
 
 # Default configuration values
 readonly DEFAULT_CONFIG=(
-    "INSTALL_DIR=/var/www/nextcloud"
-    "DATA_DIR=/var/nextcloud/data"
-    "BACKUP_DIR=/var/backups/nextcloud"
+    "INSTALL_DIR=/var/www/html"
+    "DATA_DIR=/var/www/html/storage"
     "DB_TYPE=mysql"
-    "DB_NAME=nextcloud"
-    "DB_USER=nextcloud"
-    "DB_PASS=$(openssl rand -hex 16)"
+    "DB_NAME=laravel_db"
+    "DB_USER=deployer"
+    "DB_PASS=Qwerty123!"
     "DB_HOST=localhost"
     "REDIS_HOST=localhost"
     "REDIS_PORT=6379"
-    "WEB_SERVER=apache"
+    "WEB_SERVER=nginx"
     "DOMAIN_NAME=localhost"
-    "ADMIN_USER=admin"
-    "ADMIN_PASS=$(openssl rand -base64 12)"
+    "ADMIN_USER=deployer"
+    "ADMIN_PASS=Qwerty123!"
     "PHP_VERSION=8.4"
-    "PHP_MEMORY_LIMIT=1G"
-    "PHP_UPLOAD_MAX=10G"
-    "PHP_POST_MAX_SIZE=10G"
+    "PHP_MEMORY_LIMIT=256M"
+    "PHP_UPLOAD_MAX=10M"
+    "PHP_POST_MAX_SIZE=100M"
 )
 
 # Validate configuration key-value pair
@@ -54,7 +53,7 @@ _validate_config_line() {
     done
     
     # If we get here, the line didn't match any pattern
-    print_warning "Invalid configuration line: ${line}"
+    log_warning "Invalid configuration line: ${line}"
     return 1
 }
 
@@ -68,39 +67,39 @@ load_config() {
     local config_dir=$(dirname "${config_file}")
     if [ ! -d "${config_dir}" ]; then
         mkdir -p "${config_dir}" || {
-            print_error "Failed to create config directory: ${config_dir}"
+            log_error "Failed to create config directory: ${config_dir}"
             return 1
         }
-        chmod 750 "${config_dir}" || print_warning "Failed to set permissions for: ${config_dir}"
+        chmod 750 "${config_dir}" || log_warning "Failed to set permissions for: ${config_dir}"
     fi
     
     # If config file exists, validate and load it
     if [ -f "${config_file}" ]; then
-        print_status "Loading configuration from: ${config_file}"
+        log_info "Loading configuration from: ${config_file}"
         
         # Validate each line before sourcing
         local line
         while IFS= read -r line; do
             _validate_config_line "${line}" || {
-                print_warning "Skipping invalid configuration in ${config_file}"
+                log_warning "Skipping invalid configuration in ${config_file}"
                 continue
             }
         done < "${config_file}"
         
         # Source the config file
         . "${config_file}" || {
-            print_error "Failed to load configuration from: ${config_file}"
+            log_error "Failed to load configuration from: ${config_file}"
             return 1
         }
     # If default value is provided, use it
     elif [ -n "${default_value}" ]; then
-        print_status "Using default configuration for: ${config_file}"
+        log_info "Using default configuration for: ${config_file}"
         eval "${default_value}" || {
-            print_error "Failed to set default configuration"
+            log_error "Failed to set default configuration"
             return 1
         }
     else
-        print_error "Configuration file not found and no default provided: ${config_file}"
+        log_error "Configuration file not found and no default provided: ${config_file}"
         return 1
     fi
     
@@ -109,7 +108,7 @@ load_config() {
     . "${config_file}" 2>/dev/null || true
     set +a
     
-    print_success "Configuration loaded successfully from ${config_file}"
+    log_success "Configuration loaded successfully from ${config_file}"
 }
 
 # Apply configuration template to a target file with validation
@@ -123,7 +122,7 @@ apply_config_template() {
     
     # Validate template file
     if [ ! -f "${template_file}" ]; then
-        print_error "Template file not found: ${template_file}"
+        log_error "Template file not found: ${template_file}"
         return 1
     fi
     
@@ -131,26 +130,26 @@ apply_config_template() {
     local target_dir=$(dirname "${target_file}")
     if [ ! -d "${target_dir}" ]; then
         mkdir -p "${target_dir}" || {
-            print_error "Failed to create target directory: ${target_dir}"
+            log_error "Failed to create target directory: ${target_dir}"
             return 1
         }
-        chmod 755 "${target_dir}" || print_warning "Failed to set permissions for: ${target_dir}"
+        chmod 755 "${target_dir}" || log_warning "Failed to set permissions for: ${target_dir}"
     fi
     
     # Create a secure temporary file
     local temp_file
     temp_file=$(mktemp) || {
-        print_error "Failed to create temporary file"
+        log_error "Failed to create temporary file"
         return 1
     }
     
     # Set secure permissions on temp file
-    chmod 600 "${temp_file}" || print_warning "Failed to secure temporary file"
+    chmod 600 "${temp_file}" || log_warning "Failed to secure temporary file"
     
     # Copy template to temp file
     if ! cp "${template_file}" "${temp_file}"; then
         rm -f "${temp_file}"
-        print_error "Failed to copy template to temporary file"
+        log_error "Failed to copy template to temporary file"
         return 1
     fi
     
@@ -163,7 +162,7 @@ apply_config_template() {
         
         # Basic validation of variable name
         if [[ ! "${var_name}" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]]; then
-            print_warning "Skipping invalid variable name: ${var_name}"
+            log_warning "Skipping invalid variable name: ${var_name}"
             continue
         fi
         
@@ -173,30 +172,23 @@ apply_config_template() {
         # Replace all occurrences of __VAR_NAME__ with the value
         if ! sed -i "s|__${var_name}__|${safe_value}|g" "${temp_file}"; then
             rm -f "${temp_file}"
-            print_error "Failed to process variable: ${var_name}"
+            log_error "Failed to process variable: ${var_name}"
             return 1
         fi
     done
     
-    # Backup existing file if it exists
-    if [ -f "${target_file}" ]; then
-        backup_file "${target_file}" || {
-            rm -f "${temp_file}"
-            return 1
-        }
-    fi
     
     # Move the processed file to target location
     if ! mv "${temp_file}" "${target_file}"; then
         rm -f "${temp_file}"
-        print_error "Failed to move temporary file to: ${target_file}"
+        log_error "Failed to move temporary file to: ${target_file}"
         return 1
     fi
     
     # Set secure permissions on target file
-    chmod 640 "${target_file}" || print_warning "Failed to set permissions for: ${target_file}"
+    chmod 640 "${target_file}" || log_warning "Failed to set permissions for: ${target_file}"
     
-    print_success "Applied configuration: ${target_file}"
+    log_success "Applied configuration: ${target_file}"
     return 0
 }
 
@@ -205,51 +197,49 @@ load_installation_config() {
     local config_dir="${1:-$CONFIG_DIR}"
     
     # Set default installation directory
-    : "${INSTALL_DIR:="/var/www/nextcloud"}"
-    : "${NEXTCLOUD_ROOT:="$INSTALL_DIR"}"
-    : "${NEXTCLOUD_DATA_DIR:="$INSTALL_DIR/data"}"
-    : "${BACKUP_DIR:="/var/backups/nextcloud"}"
+    : "${INSTALL_DIR:="/var/www/html"}"
+    : "${LARAVEL_ROOT:="$INSTALL_DIR"}"
+    : "${LARAVEL_DATA_DIR:="$INSTALL_DIR/storage"}"
     
     # Default configuration values
     local default_config="
         # System Configuration
-        INSTALL_DIR="$INSTALL_DIR"
-        NEXTCLOUD_ROOT="$NEXTCLOUD_ROOT"
-        NEXTCLOUD_DATA_DIR="$NEXTCLOUD_DATA_DIR"
-        BACKUP_DIR="$BACKUP_DIR"
+        INSTALL_DIR=\"$INSTALL_DIR\"
+        LARAVEL_ROOT=\"$LARAVEL_ROOT\"
+        LARAVEL_DATA_DIR=\"$LARAVEL_DATA_DIR\"
         
         # Database Configuration
-        DB_TYPE="${DB_TYPE:-mysql}"
-        DB_NAME="${DB_NAME:-nextcloud}"
-        DB_USER="${DB_USER:-nextcloud}"
-        DB_PASS="${DB_PASS:-$(openssl rand -hex 16)}"
-        DB_HOST="${DB_HOST:-localhost}"
-        DB_PORT="${DB_PORT:-3306}"
+        DB_TYPE=\"${DB_TYPE:-mysql}\"
+        DB_NAME=\"${DB_NAME:-laravel_db}\"
+        DB_USER=\"${DB_USER:-deployer}\"
+        DB_PASS=\"${DB_PASS:-Qwerty123!}\"
+        DB_HOST=\"${DB_HOST:-localhost}\"
+        DB_PORT=\"${DB_PORT:-3306}\"
         
         # Redis Configuration
-        REDIS_HOST="${REDIS_HOST:-localhost}"
-        REDIS_PORT="${REDIS_PORT:-6379}"
+        REDIS_HOST=\"${REDIS_HOST:-localhost}\"
+        REDIS_PORT=\"${REDIS_PORT:-6379}\"
         
         # Web Server Configuration
-        WEB_SERVER="${WEB_SERVER:-apache}"
-        DOMAIN_NAME="${DOMAIN_NAME:-localhost}"
-        ADMIN_USER="${ADMIN_USER:-admin}"
-        ADMIN_PASS="${ADMIN_PASS:-$(openssl rand -base64 12)}"
+        WEB_SERVER=\"${WEB_SERVER:-nginx}\"
+        DOMAIN_NAME=\"${DOMAIN_NAME:-localhost}\"
+        ADMIN_USER=\"${ADMIN_USER:-deployer}\"
+        ADMIN_PASS=\"${ADMIN_PASS:-Qwerty123!}\"
         
         # PHP Configuration
-        PHP_VERSION="${PHP_VERSION:-8.4}"
-        PHP_MEMORY_LIMIT="${PHP_MEMORY_LIMIT:-1G}"
-        PHP_UPLOAD_MAX="${PHP_UPLOAD_MAX:-10G}"
-        PHP_POST_MAX_SIZE="${PHP_POST_MAX_SIZE:-10G}"
+        PHP_VERSION=\"${PHP_VERSION:-8.4}\"
+        PHP_MEMORY_LIMIT=\"${PHP_MEMORY_LIMIT:-256M}\"
+        PHP_UPLOAD_MAX=\"${PHP_UPLOAD_MAX:-10M}\"
+        PHP_POST_MAX_SIZE=\"${PHP_POST_MAX_SIZE:-100M}\"
         
         # SSL Configuration
-        SSL_ENABLED="${SSL_ENABLED:-true}"
-        SSL_EMAIL="${SSL_EMAIL:-support@e-granary.com}"
-        SSL_COUNTRY="${SSL_COUNTRY:-KE}"
-        SSL_STATE="${SSL_STATE:-Nairobi}"
-        SSL_LOCALITY="${SSL_LOCALITY:-Nairobi}"
-        SSL_ORG="${SSL_ORG:-e-Granary}"
-        SSL_OU='${SSL_OU:-ICT Department}'
+        SSL_ENABLED=\"${SSL_ENABLED:-true}\"
+        SSL_EMAIL=\"${SSL_EMAIL:-admin@localhost}\"
+        SSL_COUNTRY=\"${SSL_COUNTRY:-KE}\"
+        SSL_STATE=\"${SSL_STATE:-Nairobi}\"
+        SSL_LOCALITY=\"${SSL_LOCALITY:-Nairobi}\"
+        SSL_ORG=\"${SSL_ORG:-Laravel Project}\"
+        SSL_OU=\"${SSL_OU:-Development Team}\"
     "
     
     # Create config directory if it doesn't exist
@@ -266,7 +256,7 @@ load_installation_config() {
     source "$main_config"
     
     # Export all variables for use in other scripts
-    export INSTALL_DIR DATA_DIR BACKUP_DIR \
+    export INSTALL_DIR DATA_DIR \
            DB_TYPE DB_NAME DB_USER DB_PASS DB_HOST \
            REDIS_HOST REDIS_PORT \
            WEB_SERVER DOMAIN_NAME ADMIN_USER ADMIN_PASS \
@@ -300,48 +290,3 @@ generate_configs() {
     fi
 }
 
-# Backup existing configuration files
-backup_configs() {
-    local backup_dir="${1:-$BACKUP_DIR/config-backups/$(date +%Y%m%d_%H%M%S)}"
-    local config_files=(
-        "/etc/apache2/sites-available/nextcloud.conf"
-        "/etc/php/$PHP_VERSION/fpm/pool.d/nextcloud.conf"
-        "/etc/php/$PHP_VERSION/fpm/php.ini"
-        "/etc/php/$PHP_VERSION/mods-available/nextcloud.ini"
-        "/etc/php/$PHP_VERSION/cli/php.ini"
-        "/etc/redis/redis.conf"
-    )
-    
-    mkdir -p "$backup_dir"
-    
-    for file in "${config_files[@]}"; do
-        if [ -f "$file" ]; then
-            cp -v "$file" "$backup_dir/"
-        fi
-    done
-    
-    echo "Configuration backed up to: $backup_dir"
-}
-
-# Restore configuration from backup
-restore_configs() {
-    local backup_dir="${1:-$(ls -d $BACKUP_DIR/config-backups/*/ | sort -r | head -n 1)}"
-    
-    if [ ! -d "$backup_dir" ]; then
-        echo "Error: Backup directory not found: $backup_dir" >&2
-        return 1
-    fi
-    
-    echo "Restoring configurations from: $backup_dir"
-    
-    # Restore each file that exists in the backup
-    find "$backup_dir" -type f | while read -r backup_file; do
-        local target_file="/${backup_file#$backup_dir/}"
-        if [ -f "$backup_file" ]; then
-            mkdir -p "$(dirname "$target_file")"
-            cp -v "$backup_file" "$target_file"
-        fi
-    done
-    
-    echo "Configuration restored from: $backup_dir"
-}

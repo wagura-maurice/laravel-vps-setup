@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Common functions for Nextcloud setup scripts
+# Common functions for Laravel setup scripts
 # This file provides utility functions for system configuration, file operations,
 # and logging with proper error handling and security considerations.
 
@@ -25,7 +25,11 @@ set -o noclobber  # Prevent overwriting existing files with >
 # Only set SCRIPT_NAME if not already set
 : "${SCRIPT_NAME:=$(basename "${0}")}"
 : "${SCRIPT_DIR:=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
-: "${PROJECT_ROOT:=$(dirname "$SCRIPT_DIR")}"
+
+# Calculate PROJECT_ROOT correctly (go up 2 levels from src/core/ to reach project root)
+if [ -z "${PROJECT_ROOT:-}" ]; then
+    PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../../" && pwd)"
+fi
 
 export SCRIPT_DIR PROJECT_ROOT
 
@@ -46,8 +50,7 @@ export SCRIPT_DIR PROJECT_ROOT
 export E_SUCCESS E_ERROR E_INVALID_ARG E_MISSING_DEP E_PERMISSION E_CONFIG
 
 # Load environment if not already loaded
-if [ -z "${PROJECT_ROOT:-}" ]; then
-    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -z "${ENV_LOADED:-}" ]; then
     if [ -f "${SCRIPT_DIR}/env-loader.sh" ]; then
         source "${SCRIPT_DIR}/env-loader.sh"
     else
@@ -70,7 +73,6 @@ ensure_directories() {
         "${LOG_DIR}"
         "${CONFIG_DIR}"
         "${DATA_DIR}"
-        "${PROJECT_ROOT}/backups"
         "${PROJECT_ROOT}/tmp"
     )
     
@@ -82,10 +84,6 @@ ensure_directories() {
     done
 }
 
-# Check if a command exists
-command_exists() {
-    command -v "$1" >/dev/null 2>&1
-}
 
 # Install required packages
 install_packages() {
@@ -138,23 +136,6 @@ require_commands() {
 print_header() {
     log_section "$1"
 }
-
-# Backup a file with timestamp
-backup_file() {
-    local file="$1"
-    if [ -f "$file" ]; then
-        local backup="${file}.bak.$(date +%Y%m%d%H%M%S)"
-        log_info "Creating backup of $file to $backup"
-        if ! cp "$file" "$backup"; then
-            log_error "Failed to create backup of $file" ${E_ERROR}
-        fi
-        chmod ${SECURE_FILE_PERMS} "$backup" || log_warning "Failed to set permissions on backup file"
-        log_success "Backup created: $backup"
-    else
-        log_warning "File not found for backup: $file"
-    fi
-}
-
 
 # Check if a process is running
 # Usage: is_process_running <process_name>
@@ -258,27 +239,27 @@ enable_service() {
     local service="$1"
     
     if ! systemctl list-unit-files "${service}.service" &>/dev/null; then
-        print_warning "Service not found: ${service}.service"
+        log_warning "Service not found: ${service}.service"
         return ${E_ERROR}
     fi
     
     # Enable the service to start on boot
     if ! systemctl is-enabled "${service}" &>/dev/null; then
-        print_status "Enabling ${service} service to start on boot..."
+        log_info "Enabling ${service} service to start on boot..."
         if ! systemctl enable "${service}"; then
-            print_error "Failed to enable ${service} service" ${E_ERROR}
+            log_error "Failed to enable ${service} service" ${E_ERROR}
         fi
     fi
     
     # Start the service if not already running
     if ! systemctl is-active "${service}" &>/dev/null; then
-        print_status "Starting ${service} service..."
+        log_info "Starting ${service} service..."
         if ! systemctl start "${service}"; then
-            print_error "Failed to start ${service} service" ${E_ERROR}
+            log_error "Failed to start ${service} service" ${E_ERROR}
         fi
     fi
     
-    print_success "Service ${service} is enabled and running"
+    log_success "Service ${service} is enabled and running"
     return ${E_SUCCESS}
 }
 
@@ -288,27 +269,27 @@ disable_service() {
     local service="$1"
     
     if ! systemctl list-unit-files "${service}.service" &>/dev/null; then
-        print_warning "Service not found: ${service}.service"
+        log_warning "Service not found: ${service}.service"
         return ${E_ERROR}
     fi
     
     # Stop the service if running
     if systemctl is-active "${service}" &>/dev/null; then
-        print_status "Stopping ${service} service..."
+        log_info "Stopping ${service} service..."
         if ! systemctl stop "${service}"; then
-            print_warning "Failed to stop ${service} service"
+            log_warning "Failed to stop ${service} service"
         fi
     fi
     
     # Disable the service
     if systemctl is-enabled "${service}" &>/dev/null; then
-        print_status "Disabling ${service} service..."
+        log_info "Disabling ${service} service..."
         if ! systemctl disable "${service}"; then
-            print_warning "Failed to disable ${service} service"
+            log_warning "Failed to disable ${service} service"
         fi
     fi
     
-    print_success "Service ${service} is disabled and stopped"
+    log_success "Service ${service} is disabled and stopped"
     return ${E_SUCCESS}
 }
 
@@ -328,21 +309,21 @@ add_line_to_file() {
     
     # Create directory if it doesn't exist
     if [ ! -d "${file_dir}" ]; then
-        mkdir -p "${file_dir}" || print_error "Failed to create directory: ${file_dir}"
-        chmod 755 "${file_dir}" || print_warning "Failed to set permissions for: ${file_dir}"
+        mkdir -p "${file_dir}" || log_error "Failed to create directory: ${file_dir}"
+        chmod 755 "${file_dir}" || log_warning "Failed to set permissions for: ${file_dir}"
     fi
     
     # Create file if it doesn't exist
     if [ ! -f "${file}" ]; then
-        echo "${line}" > "${file}" || print_error "Failed to create file: ${file}"
-        chmod 644 "${file}" || print_warning "Failed to set permissions for: ${file}"
-        print_success "Created file: ${file}"
+        echo "${line}" > "${file}" || log_error "Failed to create file: ${file}"
+        chmod 644 "${file}" || log_warning "Failed to set permissions for: ${file}"
+        log_success "Created file: ${file}"
     # Add line if it doesn't exist
     elif ! file_contains "${file}" "${line}"; then
-        echo "${line}" >> "${file}" || print_error "Failed to append to file: ${file}"
-        print_success "Updated file: ${file}"
+        echo "${line}" >> "${file}" || log_error "Failed to append to file: ${file}"
+        log_success "Updated file: ${file}"
     else
-        print_status "Line already exists in ${file}"
+        log_info "Line already exists in ${file}"
     fi
 }
 
