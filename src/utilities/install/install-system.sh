@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Load core configuration and utilities
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 CORE_DIR="${SCRIPT_DIR}/src/core"
 source "${CORE_DIR}/env-loader.sh" 2>/dev/null || {
     echo "Error: Failed to load ${CORE_DIR}/env-loader.sh" >&2
