@@ -135,20 +135,10 @@ set_defaults() {
 
 # Load environment from .env file if it exists
 if [ -f "${PROJECT_ROOT}/.env" ]; then
-    # Export existing variables to avoid them being overridden
-    local_vars=$(compgen -v | grep -v '^_$')
-    
     # Source the .env file
     set -o allexport
     source "${PROJECT_ROOT}/.env"
     set +o allexport
-    
-    # Restore previous variables
-    for var in $local_vars; do
-        if [ -n "${!var+x}" ]; then
-            export "$var=${!var}"
-        fi
-    done
     
     log_info "Loaded environment variables from ${PROJECT_ROOT}/.env"
 else
@@ -239,9 +229,6 @@ EOL
     
     # Load the environment variables
     if [ -f "$env_file" ]; then
-        # Export existing variables to avoid them being overridden
-        local_vars=$(compgen -v | grep -v '^_$')
-        
         # Source the .env file
         set -o allexport
         source "$env_file" || {
@@ -251,17 +238,8 @@ EOL
         }
         set +o allexport
         
-        # Restore previous variables
-        for var in $local_vars; do
-            if [ -n "${!var+x}" ]; then
-                export "$var=${!var}"
-            fi
-        done
-        
         log_info "Loaded environment from $env_file"
-    fi
-            echo "[INFO] Loaded environment variables from $env_file"
-        fi
+        echo "[INFO] Loaded environment variables from $env_file"
     else
         if type -t log_error >/dev/null 2>&1; then
             log_error ".env file does not exist at $env_file"
