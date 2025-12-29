@@ -586,9 +586,9 @@ main() {
     log_info "============================================"
     
     # Run installation steps
-    # update_system
-    # configure_firewall
-    # install_utilities
+    update_system
+    configure_firewall
+    install_utilities
     # install_mysql
     # install_nginx
     # install_php
