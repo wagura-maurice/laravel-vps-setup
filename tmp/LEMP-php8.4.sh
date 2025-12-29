@@ -587,21 +587,21 @@ main() {
     log_info "============================================"
     
     # Run installation steps
-    # update_system
-    # configure_firewall
-    # install_utilities
-    # install_mysql
-    # install_nginx
-    # install_php
-    # setup_deployer_user
-    # install_composer
-    # install_nodejs
-    # install_pm2
-    # install_redis
-    # install_fail2ban
+    update_system
+    configure_firewall
+    install_utilities
+    install_mysql
+    install_nginx
+    install_php
+    setup_deployer_user
+    install_composer
+    install_nodejs
+    install_pm2
+    install_redis
+    install_fail2ban
     
-    # # Save credentials
-    # save_credentials
+    # Save credentials
+    save_credentials
     
     # Final restart of services
     log_info "Restarting all services..."
