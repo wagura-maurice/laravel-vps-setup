@@ -592,7 +592,7 @@ main() {
     # install_mysql
     # install_nginx
     # install_php
-    # setup_deployer_user
+    setup_deployer_user
     # install_composer
     install_nodejs
     install_pm2
