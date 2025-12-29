@@ -459,7 +459,7 @@ install_pm2() {
     if ! sudo npm install -g pm2@latest; then
         log_error "Failed to install PM2"
         return 1
-    }
+    fi
     
     # Verify PM2 installation
     if ! command -v pm2 &> /dev/null; then
