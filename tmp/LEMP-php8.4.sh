@@ -466,89 +466,52 @@ install_nodejs() {
 #==============================================================================
 
 install_pm2() {
-    log_info "Updating npm to the latest version..."
-    if ! sudo npm install -g npm@latest; then
-        log_warning "Failed to update npm, but continuing with current version"
-    fi
-
     log_info "Installing PM2 process manager globally..."
-    if ! sudo npm install -g pm2@latest; then
+    
+    # Install PM2 globally
+    if ! npm install -g pm2@latest; then
         log_error "Failed to install PM2"
         return 1
     fi
 
-    if ! command -v pm2 &> /dev/null; then
+    # Verify installation
+    if ! command -v pm2 > /dev/null; then
         log_error "PM2 command not found after installation"
         return 1
     fi
 
-    log_info "Configuring PM2 to run as user: $DEPLOYER_USERNAME..."
-
-    # Set up PM2 for the deployer user
-    export PM2_HOME="/home/$DEPLOYER_USERNAME/.pm2"
-    sudo -u "$DEPLOYER_USERNAME" mkdir -p "$PM2_HOME"
-    sudo chown -R "$DEPLOYER_USERNAME:$DEPLOYER_USERNAME" "$PM2_HOME"
-
-    # Initialize PM2 for the deployer user
-    log_info "Initializing PM2 for $DEPLOYER_USERNAME..."
-    if ! sudo -u "$DEPLOYER_USERNAME" pm2 ping > /dev/null 2>&1; then
-        sudo -u "$DEPLOYER_USERNAME" pm2 startup -u "$DEPLOYER_USERNAME" --hp "/home/$DEPLOYER_USERNAME" > /dev/null 2>&1
-    fi
-
-    # Get and execute the startup command
-    log_info "Setting up PM2 systemd service..."
-    PM2_STARTUP_CMD=$(sudo -u "$DEPLOYER_USERNAME" pm2 startup systemd -u "$DEPLOYER_USERNAME" --hp "/home/$DEPLOYER_USERNAME" | grep "sudo")
+    log_info "Setting up PM2 for user: $DEPLOYER_USERNAME..."
     
-    if [ -n "$PM2_STARTUP_CMD" ]; then
-        log_info "Configuring PM2 to start on boot..."
-        if ! eval "$PM2_STARTUP_CMD"; then
-            log_warning "Failed to set up PM2 startup, but continuing..."
-        fi
-    else
-        log_warning "Could not set up PM2 startup command, but continuing..."
-    fi
+    # Create and set permissions for PM2 home
+    local pm2_home="/home/$DEPLOYER_USERNAME/.pm2"
+    mkdir -p "$pm2_home"
+    chown -R "$DEPLOYER_USERNAME:$DEPLOYER_USERNAME" "$pm2_home"
+    
+    # Set environment for the deployer user
+    sudo -u "$DEPLOYER_USERNAME" sh -c "export PM2_HOME='$pm2_home' && pm2 ping" || {
+        log_info "Initializing PM2 for $DEPLOYER_USERNAME..."
+        sudo -u "$DEPLOYER_USERNAME" sh -c "export PM2_HOME='$pm2_home' && pm2 startup" > /dev/null 2>&1
+    }
 
-    # Save the PM2 process list
-    log_info "Saving PM2 process list..."
-    sudo -u "$DEPLOYER_USERNAME" pm2 save --force > /dev/null 2>&1 || 
-        log_warning "No PM2 processes to save (this is normal for first-time setup)"
+    # Create a simple startup script for the deployer user
+    local startup_script="/home/$DEPLOYER_USERNAME/start-pm2.sh"
+    cat > "$startup_script" << EOF
+#!/bin/bash
+export PM2_HOME='$pm2_home'
+pm2 update
+pm2 save
+EOF
 
-    # Enable and verify the PM2 service
-    local pm2_service="pm2-$DEPLOYER_USERNAME"
-    if ! systemctl is-enabled "$pm2_service" > /dev/null 2>&1; then
-        log_info "Enabling PM2 service..."
-        sudo systemctl enable "$pm2_service" --now > /dev/null 2>&1 || 
-            log_warning "Failed to enable PM2 service"
-    fi
+    chmod +x "$startup_script"
+    chown "$DEPLOYER_USERNAME:$DEPLOYER_USERNAME" "$startup_script"
 
-    # Verify the installation
-    log_info "Verifying PM2 installation for $DEPLOYER_USERNAME..."
-    if sudo -u "$DEPLOYER_USERNAME" pm2 ping > /dev/null 2>&1; then
-        log_success "PM2 is running for $DEPLOYER_USERNAME"
-        log_info "PM2 processes:"
-        sudo -u "$DEPLOYER_USERNAME" pm2 list
-    else
-        log_warning "PM2 is not running for $DEPLOYER_USERNAME"
-    fi
-
-    # Add helpful information
-    log_info ""
-    log_info "PM2 is configured to run as user: $DEPLOYER_USERNAME"
-    log_info "To manage PM2 processes, use:"
-    log_info "  sudo -u $DEPLOYER_USERNAME pm2 <command>"
-    log_info "Or switch to the deployer user:"
-    log_info "  sudo -u $DEPLOYER_USERNAME -i"
-    log_info "  pm2 <command>"
-    log_info ""
-    log_info "Example commands:"
-    log_info "  pm2 status                    # Show status"
-    log_info "  pm2 start app.js             # Start an application"
-    log_info "  pm2 save                     # Save current process list"
-    log_info "  pm2 startup                  # Re-run startup configuration"
-    log_info "  pm2 logs                     # View logs"
-    log_info ""
-
-    log_success "PM2 installation and configuration completed for $DEPLOYER_USERNAME"
+    log_success "PM2 installation completed for $DEPLOYER_USERNAME"
+    log_info "To start using PM2:"
+    log_info "1. Switch to deployer: sudo -u $DEPLOYER_USERNAME -i"
+    log_info "2. Start your app: pm2 start app.js --name 'my-app'"
+    log_info "3. Save process list: pm2 save"
+    log_info "4. Set up startup: pm2 startup"
+    
     return 0
 }
 
