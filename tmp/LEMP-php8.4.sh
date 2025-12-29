@@ -342,7 +342,7 @@ install_php() {
 install_utilities() {
     log_info "Installing system utilities..."
     
-    sudo apt install -y curl wget git unzip ca-certificates gnupg
+    sudo apt install -y curl wget git acl unzip ca-certificates gnupg
     
     log_success "Utilities installed successfully"
 }
