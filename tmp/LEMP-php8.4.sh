@@ -466,6 +466,11 @@ install_nodejs() {
 #==============================================================================
 
 install_pm2() {
+    log_info "Updating npm to the latest version..."
+    if ! sudo npm install -g npm@latest; then
+        log_warning "Failed to update npm, but continuing with current version"
+    fi
+
     log_info "Installing PM2 process manager..."
     
     # Install PM2 with error handling
@@ -478,7 +483,7 @@ install_pm2() {
     if ! command -v pm2 &> /dev/null; then
         log_error "PM2 command not found after installation"
         return 1
-    fi  # Fixed: Changed } to fi
+    fi
     
     log_info "Configuring PM2 startup for $DEPLOYER_USERNAME..."
     
@@ -487,7 +492,7 @@ install_pm2() {
     if ! sudo -u "$DEPLOYER_USERNAME" mkdir -p "$PM2_HOME"; then
         log_error "Failed to create PM2 directory: $PM2_HOME"
         return 1
-    fi  # Fixed: Changed } to fi
+    fi
     
     # Set proper permissions
     sudo chown -R "$DEPLOYER_USERNAME:$DEPLOYER_USERNAME" "$PM2_HOME"
