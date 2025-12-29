@@ -518,6 +518,29 @@ install_pm2() {
         log_warning "PM2 service file not found, skipping enable"
     fi
 
+    log_info "Verifying PM2 installation..."
+    log_info "PM2 status as root:"
+    pm2 status || log_warning "PM2 status check failed as root"
+    
+    log_info "PM2 systemd service status:"
+    systemctl status pm2-${DEPLOYER_USERNAME}.service || log_warning "Failed to check PM2 systemd service status"
+
+    log_info "Testing PM2 as deployer user..."
+    sudo -u "$DEPLOYER_USERNAME" -i <<'EOF'
+        log_info "PM2 status as deployer:"
+        pm2 status || log_warning "PM2 status check failed as deployer"
+        
+        # Example of starting a process (uncomment and modify as needed)
+        # log_info "Example: Starting a sample process..."
+        # cd ~/your-app-directory
+        # pm2 start ecosystem.config.js --env production
+        # pm2 save
+        
+        # Show final status
+        pm2 status
+        log_success "PM2 test completed as deployer user"
+EOF
+
     log_success "PM2 installation and configuration completed"
     return 0
 }
