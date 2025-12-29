@@ -505,12 +505,12 @@ install_pm2() {
     log_info "Saving PM2 process list..."
     if ! sudo -u "$DEPLOYER_USERNAME" pm2 save; then
         log_warning "Failed to save PM2 process list (this might be normal if no processes are running)"
-    }
+    fi
     
     # Enable PM2 to start on boot
     if ! sudo systemctl enable pm2-${DEPLOYER_USERNAME}.service; then
         log_warning "Failed to enable PM2 service to start on boot"
-    }
+    fi
     
     log_success "PM2 installed and configured successfully"
     return 0
