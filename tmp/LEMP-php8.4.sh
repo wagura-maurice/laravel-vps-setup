@@ -594,7 +594,7 @@ main() {
     # install_php
     # setup_deployer_user
     # install_composer
-    # install_nodejs
+    install_nodejs
     install_pm2
     install_redis
     install_fail2ban
