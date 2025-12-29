@@ -484,30 +484,31 @@ install_pm2() {
     
     # Create and set permissions for PM2 home
     local pm2_home="/home/$DEPLOYER_USERNAME/.pm2"
-    mkdir -p "$pm2_home"
-    chown -R "$DEPLOYER_USERNAME:$DEPLOYER_USERNAME" "$pm2_home"
     
-    # Set environment for the deployer user
-    sudo -u "$DEPLOYER_USERNAME" sh -c "export PM2_HOME='$pm2_home' && pm2 ping" || {
-        log_info "Initializing PM2 for $DEPLOYER_USERNAME..."
-        sudo -u "$DEPLOYER_USERNAME" sh -c "export PM2_HOME='$pm2_home' && pm2 startup" > /dev/null 2>&1
+    # Remove existing .pm2 directory if it exists
+    sudo -u "$DEPLOYER_USERNAME" rm -rf "$pm2_home"
+    
+    # Create new directory with correct permissions
+    sudo -u "$DEPLOYER_USERNAME" mkdir -p "$pm2_home"
+    
+    # Set proper ownership and permissions
+    chown -R "$DEPLOYER_USERNAME:$DEPLOYER_USERNAME" "/home/$DEPLOYER_USERNAME"
+    chmod 755 "/home/$DEPLOYER_USERNAME"
+    chmod 700 "$pm2_home"
+    
+    # Initialize PM2 for the deployer user
+    log_info "Initializing PM2 for $DEPLOYER_USERNAME..."
+    sudo -u "$DEPLOYER_USERNAME" bash -c "export PM2_HOME='$pm2_home' && pm2 ping" || {
+        log_info "Setting up PM2 startup..."
+        sudo -u "$DEPLOYER_USERNAME" bash -c "export PM2_HOME='$pm2_home' && pm2 startup" || {
+            log_warning "PM2 startup command failed, but continuing..."
+        }
     }
 
-    # Create a simple startup script for the deployer user
-    local startup_script="/home/$DEPLOYER_USERNAME/start-pm2.sh"
-    cat > "$startup_script" << EOF
-#!/bin/bash
-export PM2_HOME='$pm2_home'
-pm2 update
-pm2 save
-EOF
-
-    chmod +x "$startup_script"
-    chown "$DEPLOYER_USERNAME:$DEPLOYER_USERNAME" "$startup_script"
-
     log_success "PM2 installation completed for $DEPLOYER_USERNAME"
-    log_info "To start using PM2:"
-    log_info "1. Switch to deployer: sudo -u $DEPLOYER_USERNAME -i"
+    log_info ""
+    log_info "To use PM2:"
+    log_info "1. Switch to deployer user: sudo -u $DEPLOYER_USERNAME -i"
     log_info "2. Start your app: pm2 start app.js --name 'my-app'"
     log_info "3. Save process list: pm2 save"
     log_info "4. Set up startup: pm2 startup"
