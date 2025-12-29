@@ -247,12 +247,25 @@ install_nginx() {
 install_php() {
     log_info "Installing PHP $PHP_VERSION and extensions..."
     
-    # Add PHP repository
+    # Install prerequisite
     sudo apt install -y software-properties-common
-    sudo add-apt-repository -y ppa:ondrej/php
+    
+    # Add Ondřej PHP PPA WITHOUT automatic update
+    log_info "Adding Ondřej PHP PPA..."
+    sudo add-apt-repository -y -n ppa:ondrej/php
+    
+    # Wait for any lingering apt locks (just in case)
+    log_info "Waiting for apt locks to release if needed..."
+    while sudo fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1 || \
+          sudo fuser /var/lib/apt/lists/lock >/dev/null 2>&1; do
+        log_info "Apt lock detected, waiting 5 seconds..."
+        sleep 5
+    done
+    
+    # Now safely update and install
     sudo apt update -y
     
-    # Install PHP and common extensions
+    # Install PHP and extensions
     sudo apt install -y \
         php${PHP_VERSION} \
         php${PHP_VERSION}-fpm \
@@ -277,11 +290,11 @@ install_php() {
         php${PHP_VERSION}-tidy \
         php${PHP_VERSION}-xdebug
     
+    # Rest of your PHP configuration (unchanged)
     log_info "Configuring PHP settings..."
     
     PHP_INI="/etc/php/${PHP_VERSION}/fpm/php.ini"
     
-    # Automated PHP Configuration
     sudo sed -i 's/upload_max_filesize = .*/upload_max_filesize = 32M/' "$PHP_INI"
     sudo sed -i 's/file_uploads = .*/file_uploads = On/' "$PHP_INI"
     sudo sed -i 's/allow_url_fopen = .*/allow_url_fopen = On/' "$PHP_INI"
@@ -292,7 +305,7 @@ install_php() {
     sudo sed -i 's/;*max_input_vars = .*/max_input_vars = 5000/' "$PHP_INI"
     sudo sed -i 's/max_input_time = .*/max_input_time = 1000/' "$PHP_INI"
     sudo sed -i 's/;*cgi.fix_pathinfo=.*/cgi.fix_pathinfo=0/' "$PHP_INI"
-    
+
     # OPcache Configuration
     log_info "Configuring OPcache..."
     OPCACHE_INI="/etc/php/${PHP_VERSION}/cli/conf.d/10-opcache.ini"
@@ -454,66 +467,32 @@ install_nodejs() {
 
 install_pm2() {
     log_info "Installing PM2 process manager..."
+    sudo npm install -g pm2@latest
     
-    # Install PM2 with explicit version for stability
-    if ! sudo npm install -g pm2@latest; then
-        log_error "Failed to install PM2"
-        return 1
-    fi
-    
-    # Verify PM2 installation
     if ! command -v pm2 &> /dev/null; then
-        log_error "PM2 command not found after installation"
+        log_error "PM2 not found after installation"
         return 1
     fi
     
     log_info "Configuring PM2 startup for $DEPLOYER_USERNAME..."
+    sudo -u "$DEPLOYER_USERNAME" mkdir -p "/home/$DEPLOYER_USERNAME/.pm2"
     
-    # Create PM2 startup directory if it doesn't exist
-    PM2_HOME="/home/$DEPLOYER_USERNAME/.pm2"
-    sudo -u "$DEPLOYER_USERNAME" mkdir -p "$PM2_HOME"
-    
-    # Generate and execute PM2 startup command with more detailed logging
-    log_info "Generating PM2 startup command..."
     STARTUP_OUTPUT=$(sudo -u "$DEPLOYER_USERNAME" pm2 startup systemd -u "$DEPLOYER_USERNAME" --hp "/home/$DEPLOYER_USERNAME" 2>&1)
-    STARTUP_STATUS=$?
     
-    if [ $STARTUP_STATUS -ne 0 ]; then
-        log_error "PM2 startup command failed with status $STARTUP_STATUS"
-        log_error "PM2 startup output: $STARTUP_OUTPUT"
-        return 1
-    fi
-    
-    # Extract the sudo command from the output
-    STARTUP_CMD=$(echo "$STARTUP_OUTPUT" | grep -oP '(sudo .*$)')
+    STARTUP_CMD=$(echo "$STARTUP_OUTPUT" | grep -oP 'sudo env PATH=\$PATH:[^ ]+ pm2 startup systemd.*' | tail -n1)
     
     if [ -z "$STARTUP_CMD" ]; then
-        log_error "Failed to extract PM2 startup command from output"
-        log_error "Command output was: $STARTUP_OUTPUT"
+        log_error "Could not extract PM2 startup command"
+        log_error "Output: $STARTUP_OUTPUT"
         return 1
     fi
     
-    log_info "Executing PM2 startup command: $STARTUP_CMD"
+    log_info "Running: $STARTUP_CMD"
+    eval "$STARTUP_CMD"
     
-    # Execute the generated sudo command
-    if ! eval "$STARTUP_CMD"; then
-        log_error "Failed to execute PM2 startup command"
-        return 1
-    fi
+    sudo -u "$DEPLOYER_USERNAME" pm2 save
     
-    # Save the process list
-    log_info "Saving PM2 process list..."
-    if ! sudo -u "$DEPLOYER_USERNAME" pm2 save; then
-        log_warning "Failed to save PM2 process list (this might be normal if no processes are running)"
-    fi
-    
-    # Enable PM2 to start on boot
-    if ! sudo systemctl enable pm2-${DEPLOYER_USERNAME}.service; then
-        log_warning "Failed to enable PM2 service to start on boot"
-    fi
-    
-    log_success "PM2 installed and configured successfully"
-    return 0
+    log_success "PM2 installed and configured (service: pm2-${DEPLOYER_USERNAME}.service)"
 }
 
 #==============================================================================
