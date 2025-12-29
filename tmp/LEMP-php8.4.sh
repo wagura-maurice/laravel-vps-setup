@@ -472,52 +472,53 @@ install_pm2() {
     fi
 
     log_info "Installing PM2 process manager..."
-    
-    # Install PM2 with error handling
     if ! sudo npm install -g pm2@latest; then
         log_error "Failed to install PM2"
         return 1
     fi
-    
-    # Verify PM2 installation
+
     if ! command -v pm2 &> /dev/null; then
         log_error "PM2 command not found after installation"
         return 1
     fi
-    
+
     log_info "Configuring PM2 startup for $DEPLOYER_USERNAME..."
-    
-    # Ensure PM2 home directory exists with proper permissions
-    PM2_HOME="/home/$DEPLOYER_USERNAME/.pm2"
+
+    # Set PM2_HOME and ensure it exists with correct permissions
+    export PM2_HOME="/home/$DEPLOYER_USERNAME/.pm2"
     sudo -u "$DEPLOYER_USERNAME" mkdir -p "$PM2_HOME"
     sudo chown -R "$DEPLOYER_USERNAME:$DEPLOYER_USERNAME" "$PM2_HOME"
-    
-    # Generate the startup command
+
     log_info "Generating PM2 startup command..."
-    STARTUP_CMD=$(sudo -u "$DEPLOYER_USERNAME" pm2 startup systemd -u "$DEPLOYER_USERNAME" --hp "/home/$DEPLOYER_USERNAME" | grep -o "sudo .*")
+    # Run PM2 startup and capture the output
+    PM2_OUTPUT=$(sudo -u "$DEPLOYER_USERNAME" pm2 startup systemd -u "$DEPLOYER_USERNAME" --hp "/home/$DEPLOYER_USERNAME" 2>&1)
     
-    if [ -z "$STARTUP_CMD" ]; then
-        log_error "Failed to generate PM2 startup command"
-        return 1
+    # Extract the sudo command from the output
+    STARTUP_CMD=$(echo "$PM2_OUTPUT" | grep -o "sudo .*")
+
+    if [ -n "$STARTUP_CMD" ]; then
+        log_info "Executing PM2 startup command..."
+        if ! eval "$STARTUP_CMD"; then
+            log_warning "Failed to execute PM2 startup command, but continuing..."
+        fi
+    else
+        log_warning "Could not extract PM2 startup command, but continuing..."
+        log_debug "PM2 output was: $PM2_OUTPUT"
     fi
-    
-    # Execute the startup command
-    log_info "Setting up PM2 startup..."
-    if ! eval "$STARTUP_CMD"; then
-        log_error "Failed to execute PM2 startup command"
-        return 1
-    fi
-    
-    # Save the empty process list
+
     log_info "Saving PM2 process list..."
     sudo -u "$DEPLOYER_USERNAME" pm2 save || log_warning "Failed to save PM2 process list (normal if no processes)"
-    
-    # Enable PM2 to start on boot
-    if ! sudo systemctl enable pm2-${DEPLOYER_USERNAME}.service; then
-        log_warning "Failed to enable PM2 service to start on boot"
+
+    # Enable PM2 service if it exists
+    if [ -f "/etc/systemd/system/pm2-$DEPLOYER_USERNAME.service" ]; then
+        if ! sudo systemctl enable pm2-${DEPLOYER_USERNAME}.service; then
+            log_warning "Failed to enable PM2 service to start on boot"
+        fi
+    else
+        log_warning "PM2 service file not found, skipping enable"
     fi
-    
-    log_success "PM2 installed and configured successfully"
+
+    log_success "PM2 installation and configuration completed"
     return 0
 }
 
