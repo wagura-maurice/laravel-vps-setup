@@ -587,21 +587,21 @@ main() {
     log_info "============================================"
     
     # Run installation steps
-    update_system
-    configure_firewall
-    install_utilities
-    install_mysql
-    install_nginx
-    install_php
-    setup_deployer_user
-    install_composer
-    install_nodejs
-    install_pm2
-    install_redis
-    install_fail2ban
+    # update_system
+    # configure_firewall
+    # install_utilities
+    # install_mysql
+    # install_nginx
+    # install_php
+    # setup_deployer_user
+    # install_composer
+    # install_nodejs
+    # install_pm2
+    # install_redis
+    # install_fail2ban
     
-    # Save credentials
-    save_credentials
+    # # Save credentials
+    # save_credentials
     
     # Final restart of services
     log_info "Restarting all services..."
@@ -623,12 +623,12 @@ main() {
         log_warning ""
         log_warning "⚠️  SECURITY WARNING - MySQL Remote Access Enabled!"
         log_warning "⚠️  Root can login from ANY IP with password: $MYSQL_ROOT_PASSWORD"
-        log_warning "⚠️  Test remote connection: mysql -u root -p -h YOUR_SERVER_IP"
+        log_warning "⚠️  Test remote connection: mysql -u root -p -h $(hostname -I | awk '{print $1}')"
         log_warning "⚠️  Strongly consider restricting to specific IPs later!"
         log_warning ""
     fi
     
-    log_info "3. Test SSH login: ssh $DEPLOYER_USERNAME@\$(hostname -I | awk '{print \$1}')"
+    log_info "3. Test SSH login: ssh $DEPLOYER_USERNAME@$(hostname -I | awk '{print $1}')"
     log_info "4. Verify installations as deployer:"
     log_info "   su - $DEPLOYER_USERNAME"
     log_info "   node -v && npm -v && composer --version && pm2 status"
