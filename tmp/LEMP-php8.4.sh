@@ -489,18 +489,22 @@ install_pm2() {
     
     # Ensure PM2 home directory exists with proper permissions
     PM2_HOME="/home/$DEPLOYER_USERNAME/.pm2"
-    if ! sudo -u "$DEPLOYER_USERNAME" mkdir -p "$PM2_HOME"; then
-        log_error "Failed to create PM2 directory: $PM2_HOME"
+    sudo -u "$DEPLOYER_USERNAME" mkdir -p "$PM2_HOME"
+    sudo chown -R "$DEPLOYER_USERNAME:$DEPLOYER_USERNAME" "$PM2_HOME"
+    
+    # Generate the startup command
+    log_info "Generating PM2 startup command..."
+    STARTUP_CMD=$(sudo -u "$DEPLOYER_USERNAME" pm2 startup systemd -u "$DEPLOYER_USERNAME" --hp "/home/$DEPLOYER_USERNAME" | grep -o "sudo .*")
+    
+    if [ -z "$STARTUP_CMD" ]; then
+        log_error "Failed to generate PM2 startup command"
         return 1
     fi
     
-    # Set proper permissions
-    sudo chown -R "$DEPLOYER_USERNAME:$DEPLOYER_USERNAME" "$PM2_HOME"
-    
-    # Generate and execute PM2 startup
+    # Execute the startup command
     log_info "Setting up PM2 startup..."
-    if ! sudo -u "$DEPLOYER_USERNAME" pm2 startup systemd -u "$DEPLOYER_USERNAME" --hp "/home/$DEPLOYER_USERNAME" --no-daemon; then
-        log_error "Failed to setup PM2 startup"
+    if ! eval "$STARTUP_CMD"; then
+        log_error "Failed to execute PM2 startup command"
         return 1
     fi
     
