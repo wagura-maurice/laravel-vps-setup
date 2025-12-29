@@ -587,14 +587,14 @@ main() {
     
     # Run installation steps
     update_system
-    # configure_firewall
-    # install_utilities
-    # install_mysql
-    # install_nginx
-    # install_php
-    # setup_deployer_user
-    # install_composer
-    # install_nodejs
+    configure_firewall
+    install_utilities
+    install_mysql
+    install_nginx
+    install_php
+    setup_deployer_user
+    install_composer
+    install_nodejs
     install_pm2
     install_redis
     install_fail2ban
