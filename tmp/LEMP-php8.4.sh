@@ -287,6 +287,9 @@ EOF
     log_info "Configuring Nginx client_max_body_size..."
     NGINX_CONF="/etc/nginx/nginx.conf"
     
+    # Define PHP_INI path (same as in PHP function)
+    PHP_INI="/etc/php/${PHP_VERSION}/fpm/php.ini"
+    
     # Get the post_max_size value from PHP configuration
     POST_MAX_SIZE=$(grep "post_max_size =" "$PHP_INI" | cut -d'=' -f2 | tr -d ' ')
     log_info "Setting client_max_body_size to $POST_MAX_SIZE (matching PHP post_max_size)"
