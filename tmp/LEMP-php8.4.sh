@@ -14,16 +14,16 @@ set -o pipefail  # Exit on pipe failures
 #==============================================================================
 
 # MySQL Configuration
-MYSQL_ROOT_PASSWORD="${MYSQL_ROOT_PASSWORD:-$(openssl rand -base64 32)}"
+MYSQL_ROOT_PASSWORD="${MYSQL_ROOT_PASSWORD:-$(openssl rand -base64 32 | tr -d '/+=')}"
 
 # Deployer User Configuration
 DEPLOYER_USERNAME="deployer"
-DEPLOYER_PASSWORD="${DEPLOYER_PASSWORD:-$(openssl rand -base64 32)}"
+DEPLOYER_PASSWORD="${DEPLOYER_PASSWORD:-$(openssl rand -base64 32 | tr -d '/+=')}"
 DEPLOYER_EMAIL="business@waguramaurice.com"
 DEPLOYER_FULLNAME="Wagura Maurice"
 
 # Redis Configuration
-REDIS_PASSWORD="${REDIS_PASSWORD:-$(openssl rand -base64 32)}"
+REDIS_PASSWORD="${REDIS_PASSWORD:-$(openssl rand -base64 32 | tr -d '/+=')}"
 
 # SSH Public Key for Deployer (replace with your actual key)
 DEPLOYER_SSH_KEY="ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQC9h81rG/s+3hJ3nTEpxE78O+MFs1NtPfU+pn4/ZX9hs9PxoLkUrKmnLSqzNBlK1FKL3fz1dgL1WTh21rVb7qEmnh/7kBaiAObl/s4+M7BxZwwwIxj35LZOKoyAozcjdURpnblB8g7aUJ4Yayn466isFECo9BxDSfV07OOKOxbGC5GFgnkxU//XowGXgHzgJ3k76JBPFNV+gDQRa3As6XMqApn2aNAGs0wEwhxJa4FX0sEVcvZ84HUfjI7vDx6OueD5r8qgVsectHzNVAutUAQXOUfiahgOPKwlopqXGyvAfW2lirI1j9SPqBJquWelhODgG2WKTFE8AZGpXLhofEYtUSTgL/b8gca3xlZ+cfiqWMn0283oYoLBxNotsdGg4fY20EZBA0WmiyeTzYFo1RVCPpNxjJ7jUm+UQZ9wNaQsKxS0q1emG4lHusz26KKUjgCaoTgjrCBk2fwBsFkGKgvTDaiHelMgM7y5jSlspX1r45kZb5tfdxTDTBbQaOZDD5osjNXRlfcwXMP0WqRM69YOe+8Kv6YqQu+L3uv3y6eT9vGR3cv7LbTNEg2uKV3kgLT528fd9FT8fVpBFbmyeDoqQ2VJaOTkNFe7y4BY7o/v0XEFSomUXjYOKnavFdxHwXI2gA/ke2hmQYj3qvhBPdiIYujwB0FW/JTPdqnV0DACkw== business@waguramaurice.com"
@@ -627,8 +627,8 @@ install_redis() {
     
     log_info "Configuring Redis..."
     
-    # Set password
-    sudo sed -i "s/^# requirepass foobared/requirepass $REDIS_PASSWORD/" /etc/redis/redis.conf
+    # Set password (use | delimiter to avoid conflicts with special chars in password)
+    sudo sed -i "s|^# requirepass foobared|requirepass $REDIS_PASSWORD|" /etc/redis/redis.conf
     
     # Bind to localhost only (secure default)
     sudo sed -i 's/^bind .*/bind 127.0.0.1 ::1/' /etc/redis/redis.conf
