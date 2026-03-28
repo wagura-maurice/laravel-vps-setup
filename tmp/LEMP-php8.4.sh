@@ -269,13 +269,8 @@ EOF
     # Backup original configuration and create new one
     log_info "Backing up original Nginx configuration..."
     if [ -f "/etc/nginx/sites-available/default" ]; then
-        sudo cp /etc/nginx/sites-available/default /etc/nginx/sites-available/default.backup
-        log_success "Original Nginx config backed up to default.backup"
-    fi
-    
-    if [ -f "/etc/nginx/sites-enabled/default" ]; then
-        sudo cp /etc/nginx/sites-enabled/default /etc/nginx/sites-enabled/default.backup
-        log_success "Original enabled config backed up to default.backup"
+        sudo cp /etc/nginx/sites-available/default /etc/nginx/sites-available/default.lemp_backup
+        log_success "Original Nginx config backed up to default.lemp_backup"
     fi
     
     # Remove default symlink if exists and create new one
