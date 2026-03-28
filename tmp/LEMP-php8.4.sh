@@ -2,7 +2,7 @@
 
 #==============================================================================
 # LEMP Stack Installation Script (Ubuntu/Debian)
-# Nginx + MySQL + PHP 8.4 + Node.js 22 + Redis + Deployer User Setup
+# Nginx + Certbot + MySQL + PHP 8.4 + Composer + Node.js 22 + PM2 + Redis + Deployer User Setup
 #==============================================================================
 
 set -e  # Exit on any error
@@ -305,6 +305,7 @@ install_php() {
     sudo sed -i 's/;*max_input_vars = .*/max_input_vars = 5000/' "$PHP_INI"
     sudo sed -i 's/max_input_time = .*/max_input_time = 1000/' "$PHP_INI"
     sudo sed -i 's/;*cgi.fix_pathinfo=.*/cgi.fix_pathinfo=0/' "$PHP_INI"
+    sudo sed -i 's/;*max_file_uploads = .*/max_file_uploads = 50/' "$PHP_INI"
 
     # OPcache Configuration
     log_info "Configuring OPcache..."
@@ -342,7 +343,7 @@ install_php() {
 install_utilities() {
     log_info "Installing system utilities..."
     
-    sudo apt install -y curl wget git acl unzip ca-certificates gnupg
+    sudo apt install -y curl wget git acl unzip ca-certificates gnupg python3 certbot python3-certbot-nginx
     
     log_success "Utilities installed successfully"
 }
@@ -556,6 +557,226 @@ install_fail2ban() {
 }
 
 #==============================================================================
+# INSTALLATION VERIFICATION
+#==============================================================================
+
+verify_installation() {
+    log_info "Verifying installation success..."
+    log_info "============================================"
+    
+    local verification_failed=0
+    
+    # Test Nginx
+    log_info "Testing Nginx..."
+    if systemctl is-active --quiet nginx && systemctl is-enabled --quiet nginx; then
+        log_success "✓ Nginx is running and enabled"
+    else
+        log_error "✗ Nginx verification failed"
+        verification_failed=1
+    fi
+    
+    # Test MySQL with credentials
+    log_info "Testing MySQL connection with credentials..."
+    if mysql -u root -p"$MYSQL_ROOT_PASSWORD" -e "SELECT 1;" >/dev/null 2>&1; then
+        log_success "✓ MySQL connection successful with root password"
+        
+        # Test remote access if configured
+        if [ "$MYSQL_ALLOW_REMOTE" = "any" ] || [ -n "$MYSQL_ALLOW_REMOTE" ]; then
+            log_info "Testing MySQL remote access configuration..."
+            if mysql -u root -p"$MYSQL_ROOT_PASSWORD" -h "$(hostname -I | awk '{print $1}')" -e "SELECT 1;" >/dev/null 2>&1; then
+                log_success "✓ MySQL remote access working"
+            else
+                log_warning "⚠ MySQL remote access test failed (may be normal for some configurations)"
+            fi
+        fi
+    else
+        log_error "✗ MySQL connection failed with provided credentials"
+        verification_failed=1
+    fi
+    
+    # Test PHP-FPM
+    log_info "Testing PHP-FPM..."
+    if systemctl is-active --quiet php${PHP_VERSION}-fpm && systemctl is-enabled --quiet php${PHP_VERSION}-fpm; then
+        log_success "✓ PHP-FPM is running and enabled"
+        
+        # Test PHP configuration
+        if php${PHP_VERSION} -v >/dev/null 2>&1; then
+            log_success "✓ PHP ${PHP_VERSION} CLI working"
+            
+            # Test max_file_uploads setting
+            current_max_uploads=$(php${PHP_VERSION} -r "echo ini_get('max_file_uploads');")
+            if [ "$current_max_uploads" = "50" ]; then
+                log_success "✓ max_file_uploads set to 50"
+            else
+                log_warning "⚠ max_file_uploads is $current_max_uploads (expected: 50)"
+            fi
+        else
+            log_error "✗ PHP CLI verification failed"
+            verification_failed=1
+        fi
+    else
+        log_error "✗ PHP-FPM verification failed"
+        verification_failed=1
+    fi
+    
+    # Test Redis
+    log_info "Testing Redis..."
+    if systemctl is-active --quiet redis-server && systemctl is-enabled --quiet redis-server; then
+        log_success "✓ Redis is running and enabled"
+        
+        # Test Redis with password
+        if redis-cli -a "$REDIS_PASSWORD" ping >/dev/null 2>&1; then
+            log_success "✓ Redis authentication working"
+        else
+            log_error "✗ Redis authentication failed"
+            verification_failed=1
+        fi
+    else
+        log_error "✗ Redis verification failed"
+        verification_failed=1
+    fi
+    
+    # Test Node.js
+    log_info "Testing Node.js..."
+    if command -v node >/dev/null 2>&1 && command -v npm >/dev/null 2>&1; then
+        node_version=$(node -v)
+        npm_version=$(npm -v)
+        log_success "✓ Node.js $node_version and npm $npm_version working"
+    else
+        log_error "✗ Node.js/npm verification failed"
+        verification_failed=1
+    fi
+    
+    # Test Composer
+    log_info "Testing Composer..."
+    if command -v composer >/dev/null 2>&1; then
+        composer_version=$(composer --version | head -n1)
+        log_success "✓ Composer working: $composer_version"
+    else
+        log_error "✗ Composer verification failed"
+        verification_failed=1
+    fi
+    
+    # Test PM2
+    log_info "Testing PM2..."
+    if command -v pm2 >/dev/null 2>&1; then
+        pm2_version=$(pm2 -v)
+        log_success "✓ PM2 working: $pm2_version"
+    else
+        log_error "✗ PM2 verification failed"
+        verification_failed=1
+    fi
+    
+    # Test Deployer User
+    log_info "Testing Deployer user..."
+    if id "$DEPLOYER_USERNAME" >/dev/null 2>&1; then
+        log_success "✓ Deployer user '$DEPLOYER_USERNAME' exists"
+        
+        # Test SSH directory
+        if [ -d "/home/$DEPLOYER_USERNAME/.ssh" ]; then
+            log_success "✓ SSH directory exists for deployer user"
+            
+            # Test SSH keys
+            if [ -f "/home/$DEPLOYER_USERNAME/.ssh/id_rsa" ] && [ -f "/home/$DEPLOYER_USERNAME/.ssh/id_rsa.pub" ]; then
+                log_success "✓ SSH key pair generated for deployer user"
+            else
+                log_warning "⚠ SSH keys missing for deployer user"
+            fi
+        else
+            log_error "✗ SSH directory missing for deployer user"
+            verification_failed=1
+        fi
+    else
+        log_error "✗ Deployer user verification failed"
+        verification_failed=1
+    fi
+    
+    # Test Firewall
+    log_info "Testing UFW Firewall..."
+    if systemctl is-active --quiet ufw; then
+        log_success "✓ UFW Firewall is active"
+        
+        # Check essential ports
+        if ufw status | grep -q "22.*ALLOW"; then
+            log_success "✓ SSH port (22) allowed"
+        else
+            log_error "✗ SSH port not allowed in firewall"
+            verification_failed=1
+        fi
+        
+        if ufw status | grep -q "80.*ALLOW"; then
+            log_success "✓ HTTP port (80) allowed"
+        else
+            log_error "✗ HTTP port not allowed in firewall"
+            verification_failed=1
+        fi
+        
+        if ufw status | grep -q "443.*ALLOW"; then
+            log_success "✓ HTTPS port (443) allowed"
+        else
+            log_error "✗ HTTPS port not allowed in firewall"
+            verification_failed=1
+        fi
+    else
+        log_error "✗ UFW Firewall not active"
+        verification_failed=1
+    fi
+    
+    # Test Fail2Ban
+    log_info "Testing Fail2Ban..."
+    if systemctl is-active --quiet fail2ban && systemctl is-enabled --quiet fail2ban; then
+        log_success "✓ Fail2Ban is running and enabled"
+    else
+        log_error "✗ Fail2Ban verification failed"
+        verification_failed=1
+    fi
+    
+    # Test web directory permissions
+    log_info "Testing web directory permissions..."
+    if [ -d "/var/www/html" ]; then
+        owner=$(stat -c "%U:%G" /var/www/html)
+        permissions=$(stat -c "%a" /var/www/html)
+        if [ "$owner" = "$DEPLOYER_USERNAME:www-data" ] && [ "$permissions" = "775" ]; then
+            log_success "✓ Web directory permissions correct"
+        else
+            log_warning "⚠ Web directory permissions: $owner ($permissions) - may need adjustment"
+        fi
+    else
+        log_error "✗ Web directory missing"
+        verification_failed=1
+    fi
+    
+    # Create test PHP file to verify web stack
+    log_info "Testing web stack with PHP info..."
+    test_php_file="/var/www/html/test_installation.php"
+    echo "<?php phpinfo(); ?>" | sudo tee "$test_php_file" >/dev/null
+    sudo chown "$DEPLOYER_USERNAME:www-data" "$test_php_file"
+    
+    # Test with curl
+    if curl -s "http://localhost/test_installation.php" | grep -q "PHP Version"; then
+        log_success "✓ Web stack (Nginx + PHP-FPM) working"
+        sudo rm -f "$test_php_file"
+    else
+        log_error "✗ Web stack test failed"
+        verification_failed=1
+        sudo rm -f "$test_php_file"
+    fi
+    
+    log_info "============================================"
+    
+    if [ $verification_failed -eq 0 ]; then
+        log_success "🎉 INSTALLATION VERIFICATION - 100% SUCCESSFUL!"
+        log_success "All components are working correctly!"
+        return 0
+    else
+        log_error "❌ INSTALLATION VERIFICATION FAILED!"
+        log_error "Some components are not working properly."
+        log_error "Please check the errors above and fix them."
+        return 1
+    fi
+}
+
+#==============================================================================
 # MAIN INSTALLATION FUNCTION
 #==============================================================================
 
@@ -609,6 +830,16 @@ main() {
     sudo systemctl restart php${PHP_VERSION}-fpm
     sudo systemctl restart mysql
     sudo systemctl restart redis-server
+    
+    # Run comprehensive verification
+    log_info "Running installation verification..."
+    if verify_installation; then
+        log_success "Installation completed and verified successfully!"
+    else
+        log_error "Installation completed but verification failed!"
+        log_error "Please address the issues above."
+        exit 1
+    fi
     
     log_success "============================================"
     log_success "============================================"
