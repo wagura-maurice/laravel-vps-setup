@@ -1,8 +1,8 @@
 #!/bin/bash
 
 #==============================================================================
-# LEMP Stack Installation Script (Ubuntu/Debian)
-# Nginx + Certbot + MySQL + PHP 8.4 + Composer + Node.js 22 + PM2 + Redis + Deployer User Setup
+# Complete LEMP Stack Installation Script (Ubuntu/Debian)
+# Installation Process: System Update → Firewall → Utilities → MySQL → Nginx → PHP 8.4 → Deployer User → Composer → Node.js 22 → PM2 → Redis → Fail2Ban → Verification
 #==============================================================================
 
 set -e  # Exit on any error
