@@ -752,12 +752,54 @@ verify_installation() {
     echo "<?php phpinfo(); ?>" | sudo tee "$test_php_file" >/dev/null
     sudo chown "$DEPLOYER_USERNAME:www-data" "$test_php_file"
     
-    # Test with curl
-    if curl -s "http://localhost/test_installation.php" | grep -q "PHP Version"; then
+    # Debug: Check if file exists and has correct permissions
+    if [ -f "$test_php_file" ]; then
+        log_info "Test PHP file created successfully"
+        file_perms=$(stat -c "%a" "$test_php_file")
+        file_owner=$(stat -c "%U:%G" "$test_php_file")
+        log_info "Test file permissions: $file_perms, owner: $file_owner"
+    else
+        log_error "Failed to create test PHP file"
+        verification_failed=1
+    fi
+    
+    # Debug: Test Nginx status
+    if ! systemctl is-active --quiet nginx; then
+        log_error "Nginx is not running - attempting restart"
+        sudo systemctl restart nginx
+        sleep 2
+    fi
+    
+    # Debug: Test PHP-FPM status
+    if ! systemctl is-active --quiet php${PHP_VERSION}-fpm; then
+        log_error "PHP-FPM is not running - attempting restart"
+        sudo systemctl restart php${PHP_VERSION}-fpm
+        sleep 2
+    fi
+    
+    # Test with curl - with detailed error reporting
+    log_info "Testing HTTP response..."
+    http_response=$(curl -s -w "HTTP_CODE:%{http_code}" "http://localhost/test_installation.php")
+    http_code=$(echo "$http_response" | grep -o "HTTP_CODE:[0-9]*" | cut -d: -f2)
+    response_body=$(echo "$http_response" | sed 's/HTTP_CODE:[0-9]*$//')
+    
+    log_info "HTTP Response Code: $http_code"
+    
+    if [ "$http_code" = "200" ] && echo "$response_body" | grep -q "PHP Version"; then
         log_success "✓ Web stack (Nginx + PHP-FPM) working"
         sudo rm -f "$test_php_file"
     else
         log_error "✗ Web stack test failed"
+        log_error "HTTP Code: $http_code"
+        log_error "Response preview: $(echo "$response_body" | head -5)"
+        
+        # Additional debugging
+        log_info "Nginx error log (last 5 lines):"
+        sudo tail -5 /var/log/nginx/error.log 2>/dev/null || log_warning "Cannot read Nginx error log"
+        
+        log_info "PHP-FPM error log (last 5 lines):"
+        sudo tail -5 /var/log/php${PHP_VERSION}-fpm.log 2>/dev/null || log_warning "Cannot read PHP-FPM log"
+        
         verification_failed=1
         sudo rm -f "$test_php_file"
     fi
