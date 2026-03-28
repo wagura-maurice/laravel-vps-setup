@@ -288,6 +288,41 @@ EOF
     # Restart Nginx to apply configuration
     sudo systemctl restart nginx
     
+    # Configure client_max_body_size in nginx.conf to match PHP post_max_size
+    log_info "Configuring Nginx client_max_body_size..."
+    NGINX_CONF="/etc/nginx/nginx.conf"
+    
+    # Get the post_max_size value from PHP configuration
+    POST_MAX_SIZE=$(grep "post_max_size =" "$PHP_INI" | cut -d'=' -f2 | tr -d ' ')
+    log_info "Setting client_max_body_size to $POST_MAX_SIZE (matching PHP post_max_size)"
+    
+    # Backup nginx.conf
+    if [ -f "$NGINX_CONF" ]; then
+        sudo cp "$NGINX_CONF" "${NGINX_CONF}.backup"
+        log_success "Nginx main config backed up"
+    fi
+    
+    # Add client_max_body_size to http block in nginx.conf
+    if grep -q "client_max_body_size" "$NGINX_CONF"; then
+        # Update existing setting
+        sudo sed -i "s/client_max_body_size .*/client_max_body_size $POST_MAX_SIZE;/" "$NGINX_CONF"
+    else
+        # Add new setting after http { line
+        sudo sed -i "/http {/a \    client_max_body_size $POST_MAX_SIZE;" "$NGINX_CONF"
+    fi
+    
+    # Test Nginx configuration
+    if sudo nginx -t; then
+        sudo systemctl restart nginx
+        log_success "Nginx client_max_body_size configured to $POST_MAX_SIZE"
+    else
+        log_error "Nginx configuration test failed, restoring backup"
+        if [ -f "${NGINX_CONF}.backup" ]; then
+            sudo cp "${NGINX_CONF}.backup" "$NGINX_CONF"
+            sudo systemctl restart nginx
+        fi
+    fi
+    
     log_success "Nginx installed and configured successfully"
 }
 
