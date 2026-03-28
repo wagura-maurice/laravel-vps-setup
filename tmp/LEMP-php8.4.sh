@@ -834,7 +834,7 @@ verify_installation() {
     if [ -d "/var/www/html" ]; then
         owner=$(stat -c "%U:%G" /var/www/html)
         permissions=$(stat -c "%a" /var/www/html)
-        if [ "$owner" = "$DEPLOYER_USERNAME:www-data" ] && [ "$permissions" = "775" ]; then
+        if [ "$owner" = "$DEPLOYER_USERNAME:www-data" ] && ([ "$permissions" = "775" ] || [ "$permissions" = "2775" ]); then
             log_success "✓ Web directory permissions correct"
         else
             log_warning "⚠ Web directory permissions: $owner ($permissions) - may need adjustment"
@@ -845,10 +845,11 @@ verify_installation() {
     fi
     
     # Create test PHP file to verify web stack
-    log_info "Testing web stack with PHP info..."
+    log_info "Testing web stack with PHP execution..."
     test_php_file="/var/www/html/test_installation.php"
-    echo "<?php phpinfo(); ?>" | sudo tee "$test_php_file" >/dev/null
+    echo '<?php echo "LEMP_STACK_PHP_OK_" . phpversion(); ?>' | sudo tee "$test_php_file" >/dev/null
     sudo chown "$DEPLOYER_USERNAME:www-data" "$test_php_file"
+    sudo chmod 644 "$test_php_file"
     
     # Debug: Check if file exists and has correct permissions
     if [ -f "$test_php_file" ]; then
@@ -882,14 +883,15 @@ verify_installation() {
     response_body=$(echo "$http_response" | sed 's/HTTP_CODE:[0-9]*$//')
     
     log_info "HTTP Response Code: $http_code"
+    log_info "Response body: $(echo "$response_body" | head -3)"
     
-    if [ "$http_code" = "200" ] && echo "$response_body" | grep -q "PHP Version"; then
+    if [ "$http_code" = "200" ] && echo "$response_body" | grep -q "LEMP_STACK_PHP_OK"; then
         log_success "✓ Web stack (Nginx + PHP-FPM) working"
         sudo rm -f "$test_php_file"
     else
         log_error "✗ Web stack test failed"
         log_error "HTTP Code: $http_code"
-        log_error "Response preview: $(echo "$response_body" | head -5)"
+        log_error "Response preview: $(echo "$response_body" | head -10)"
         
         # Additional debugging
         log_info "Nginx error log (last 5 lines):"
