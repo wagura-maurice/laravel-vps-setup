@@ -237,7 +237,58 @@ install_nginx() {
     sudo systemctl start nginx
     sudo systemctl enable nginx
     
-    log_success "Nginx installed successfully"
+    # Configure Nginx virtual host for PHP
+    log_info "Configuring Nginx virtual host..."
+    
+    # Create default virtual host configuration
+    sudo tee /etc/nginx/sites-available/default > /dev/null <<EOF
+server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
+    root /var/www/html;
+    index index.php index.html index.htm index.nginx-debian.html;
+    server_name _;
+
+    location / {
+        try_files \$uri \$uri/ =404;
+    }
+
+    location ~ \.php$ {
+        include snippets/fastcgi-php.conf;
+        fastcgi_pass unix:/var/run/php/php${PHP_VERSION}-fpm.sock;
+        fastcgi_param SCRIPT_FILENAME \$document_root\$fastcgi_script_name;
+        include fastcgi_params;
+    }
+
+    location ~ /\.ht {
+        deny all;
+    }
+}
+EOF
+
+    # Backup original configuration and create new one
+    log_info "Backing up original Nginx configuration..."
+    if [ -f "/etc/nginx/sites-available/default" ]; then
+        sudo cp /etc/nginx/sites-available/default /etc/nginx/sites-available/default.backup
+        log_success "Original Nginx config backed up to default.backup"
+    fi
+    
+    if [ -f "/etc/nginx/sites-enabled/default" ]; then
+        sudo cp /etc/nginx/sites-enabled/default /etc/nginx/sites-enabled/default.backup
+        log_success "Original enabled config backed up to default.backup"
+    fi
+    
+    # Remove default symlink if exists and create new one
+    sudo rm -f /etc/nginx/sites-enabled/default
+    sudo ln -s /etc/nginx/sites-available/default /etc/nginx/sites-enabled/
+    
+    # Test Nginx configuration
+    sudo nginx -t
+    
+    # Restart Nginx to apply configuration
+    sudo systemctl restart nginx
+    
+    log_success "Nginx installed and configured successfully"
 }
 
 #==============================================================================
