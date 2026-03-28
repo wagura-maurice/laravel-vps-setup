@@ -17,7 +17,6 @@ set -o pipefail  # Exit on pipe failures
 MYSQL_ROOT_PASSWORD="${MYSQL_ROOT_PASSWORD:-$(openssl rand -base64 32 | tr -d '/+=')}"
 
 # Deployer User Configuration
-DEPLOYER_USERNAME="deployer"
 DEPLOYER_PASSWORD="${DEPLOYER_PASSWORD:-$(openssl rand -base64 32 | tr -d '/+=')}"
 DEPLOYER_EMAIL="business@waguramaurice.com"
 DEPLOYER_FULLNAME="Wagura Maurice"
@@ -85,9 +84,7 @@ Generated: $(date +'%Y-%m-%d %H:%M:%S')
 
 MySQL Root Password: $MYSQL_ROOT_PASSWORD
 
-Deployer User Credentials:
-  Username: $DEPLOYER_USERNAME
-  Password: $DEPLOYER_PASSWORD
+Deployer User Password: $DEPLOYER_PASSWORD
   
 Redis Password: $REDIS_PASSWORD
 
@@ -451,55 +448,55 @@ install_utilities() {
 #==============================================================================
 
 setup_deployer_user() {
-    log_info "Setting up deployer user: $DEPLOYER_USERNAME"
+    log_info "Setting up deployer user: deployer"
     
     # Create deployer user
-    if id "$DEPLOYER_USERNAME" &>/dev/null; then
-        log_warning "User $DEPLOYER_USERNAME already exists, skipping creation"
+    if id "deployer" &>/dev/null; then
+        log_warning "User deployer already exists, skipping creation"
     else
-        sudo adduser --gecos "" --disabled-password "$DEPLOYER_USERNAME"
-        echo "$DEPLOYER_USERNAME:$DEPLOYER_PASSWORD" | sudo chpasswd
-        log_success "User $DEPLOYER_USERNAME created"
+        sudo adduser --gecos "" --disabled-password "deployer"
+        echo "deployer:$DEPLOYER_PASSWORD" | sudo chpasswd
+        log_success "User deployer created"
     fi
     
     # Add to groups
-    sudo usermod -aG sudo "$DEPLOYER_USERNAME"
-    sudo usermod -aG www-data "$DEPLOYER_USERNAME"
-    sudo chfn -o umask=022 "$DEPLOYER_USERNAME"
+    sudo usermod -aG sudo "deployer"
+    sudo usermod -aG www-data "deployer"
+    sudo chfn -o umask=022 "deployer"
     
     # Set up /var/www/html
     log_info "Setting up web directory..."
     sudo mkdir -p /var/www/html
-    sudo chown "$DEPLOYER_USERNAME:www-data" /var/www/html
+    sudo chown "deployer:www-data" /var/www/html
     sudo chmod 775 /var/www/html
     sudo chmod g+s /var/www/html
     
     # SSH key setup
-    log_info "Configuring SSH keys for $DEPLOYER_USERNAME..."
-    sudo -u "$DEPLOYER_USERNAME" mkdir -p /home/$DEPLOYER_USERNAME/.ssh
-    sudo -u "$DEPLOYER_USERNAME" chmod 700 /home/$DEPLOYER_USERNAME/.ssh
+    log_info "Configuring SSH keys for deployer..."
+    sudo -u "deployer" mkdir -p /home/deployer/.ssh
+    sudo -u "deployer" chmod 700 /home/deployer/.ssh
     
     # Get server IP for SSH key comment
     SERVER_IP=$(hostname -I | awk '{print $1}')
-    SSH_KEY_COMMENT="$DEPLOYER_USERNAME@$SERVER_IP"
+    SSH_KEY_COMMENT="deployer@$SERVER_IP"
     
     # Generate SSH key pair with deployer@SERVER_IP as comment
-    if [ ! -f "/home/$DEPLOYER_USERNAME/.ssh/id_rsa" ]; then
-        sudo -u "$DEPLOYER_USERNAME" ssh-keygen -t rsa -b 4096 -N "" -f /home/$DEPLOYER_USERNAME/.ssh/id_rsa -q -C "$SSH_KEY_COMMENT"
+    if [ ! -f "/home/deployer/.ssh/id_rsa" ]; then
+        sudo -u "deployer" ssh-keygen -t rsa -b 4096 -N "" -f /home/deployer/.ssh/id_rsa -q -C "$SSH_KEY_COMMENT"
         log_success "SSH key generated with comment: $SSH_KEY_COMMENT"
     fi
     
     # Add authorized key
-    sudo -u "$DEPLOYER_USERNAME" touch /home/$DEPLOYER_USERNAME/.ssh/authorized_keys
-    sudo -u "$DEPLOYER_USERNAME" chmod 600 /home/$DEPLOYER_USERNAME/.ssh/authorized_keys
+    sudo -u "deployer" touch /home/deployer/.ssh/authorized_keys
+    sudo -u "deployer" chmod 600 /home/deployer/.ssh/authorized_keys
     
-    echo "$DEPLOYER_SSH_KEY" | sudo -u "$DEPLOYER_USERNAME" tee -a /home/$DEPLOYER_USERNAME/.ssh/authorized_keys > /dev/null
+    echo "$DEPLOYER_SSH_KEY" | sudo -u "deployer" tee -a /home/deployer/.ssh/authorized_keys > /dev/null
     
     # Git configuration
-    log_info "Configuring Git for $DEPLOYER_USERNAME..."
-    sudo -u "$DEPLOYER_USERNAME" git config --global color.ui true
-    sudo -u "$DEPLOYER_USERNAME" git config --global user.name "$DEPLOYER_FULLNAME"
-    sudo -u "$DEPLOYER_USERNAME" git config --global user.email "$DEPLOYER_EMAIL"
+    log_info "Configuring Git for deployer..."
+    sudo -u "deployer" git config --global color.ui true
+    sudo -u "deployer" git config --global user.name "$DEPLOYER_FULLNAME"
+    sudo -u "deployer" git config --global user.email "$DEPLOYER_EMAIL"
     
     log_success "Deployer user configured successfully"
 }
@@ -527,13 +524,13 @@ install_composer() {
     php -r "unlink('composer-setup.php');"
     
     # Make composer available to deployer
-    sudo -u "$DEPLOYER_USERNAME" mkdir -p /home/$DEPLOYER_USERNAME/.local/bin
-    sudo ln -sf /usr/local/bin/composer /home/$DEPLOYER_USERNAME/.local/bin/composer
-    sudo chown -R "$DEPLOYER_USERNAME:$DEPLOYER_USERNAME" /home/$DEPLOYER_USERNAME/.local
+    sudo -u "deployer" mkdir -p /home/deployer/.local/bin
+    sudo ln -sf /usr/local/bin/composer /home/deployer/.local/bin/composer
+    sudo chown -R "deployer:deployer" /home/deployer/.local
     
     # Add to PATH
-    if ! grep -q '.local/bin' /home/$DEPLOYER_USERNAME/.bashrc; then
-        echo 'export PATH="$HOME/.local/bin:$PATH"' | sudo tee -a /home/$DEPLOYER_USERNAME/.bashrc
+    if ! grep -q '.local/bin' /home/deployer/.bashrc; then
+        echo 'export PATH="$HOME/.local/bin:$PATH"' | sudo tee -a /home/deployer/.bashrc
     fi
     
     log_success "Composer installed successfully"
@@ -579,35 +576,35 @@ install_pm2() {
         return 1
     fi
 
-    log_info "Setting up PM2 for user: $DEPLOYER_USERNAME..."
+    log_info "Setting up PM2 for user: deployer..."
     
     # Create and set permissions for PM2 home
-    local pm2_home="/home/$DEPLOYER_USERNAME/.pm2"
+    local pm2_home="/home/deployer/.pm2"
     
     # Remove existing .pm2 directory if it exists
-    sudo -u "$DEPLOYER_USERNAME" rm -rf "$pm2_home"
+    sudo -u "deployer" rm -rf "$pm2_home"
     
     # Create new directory with correct permissions
-    sudo -u "$DEPLOYER_USERNAME" mkdir -p "$pm2_home"
+    sudo -u "deployer" mkdir -p "$pm2_home"
     
     # Set proper ownership and permissions
-    chown -R "$DEPLOYER_USERNAME:$DEPLOYER_USERNAME" "/home/$DEPLOYER_USERNAME"
-    chmod 755 "/home/$DEPLOYER_USERNAME"
+    chown -R "deployer:deployer" "/home/deployer"
+    chmod 755 "/home/deployer"
     chmod 700 "$pm2_home"
     
     # Initialize PM2 for the deployer user
-    log_info "Initializing PM2 for $DEPLOYER_USERNAME..."
-    sudo -u "$DEPLOYER_USERNAME" bash -c "export PM2_HOME='$pm2_home' && pm2 ping" || {
+    log_info "Initializing PM2 for deployer..."
+    sudo -u "deployer" bash -c "export PM2_HOME='$pm2_home' && pm2 ping" || {
         log_info "Setting up PM2 startup..."
-        sudo -u "$DEPLOYER_USERNAME" bash -c "export PM2_HOME='$pm2_home' && pm2 startup" || {
+        sudo -u "deployer" bash -c "export PM2_HOME='$pm2_home' && pm2 startup" || {
             log_warning "PM2 startup command failed, but continuing..."
         }
     }
 
-    log_success "PM2 installation completed for $DEPLOYER_USERNAME"
+    log_success "PM2 installation completed for deployer"
     log_info ""
     log_info "To use PM2:"
-    log_info "1. Switch to deployer user: sudo -u $DEPLOYER_USERNAME -i"
+    log_info "1. Switch to deployer user: sudo -u deployer -i"
     log_info "2. Start your app: pm2 start app.js --name 'my-app'"
     log_info "3. Save process list: pm2 save"
     log_info "4. Set up startup: pm2 startup"
@@ -767,15 +764,15 @@ verify_installation() {
     
     # Test Deployer User
     log_info "Testing Deployer user..."
-    if id "$DEPLOYER_USERNAME" >/dev/null 2>&1; then
-        log_success "✓ Deployer user '$DEPLOYER_USERNAME' exists"
+    if id "deployer" >/dev/null 2>&1; then
+        log_success "✓ Deployer user 'deployer' exists"
         
         # Test SSH directory
-        if [ -d "/home/$DEPLOYER_USERNAME/.ssh" ]; then
+        if [ -d "/home/deployer/.ssh" ]; then
             log_success "✓ SSH directory exists for deployer user"
             
             # Test SSH keys
-            if [ -f "/home/$DEPLOYER_USERNAME/.ssh/id_rsa" ] && [ -f "/home/$DEPLOYER_USERNAME/.ssh/id_rsa.pub" ]; then
+            if [ -f "/home/deployer/.ssh/id_rsa" ] && [ -f "/home/deployer/.ssh/id_rsa.pub" ]; then
                 log_success "✓ SSH key pair generated for deployer user"
             else
                 log_warning "⚠ SSH keys missing for deployer user"
@@ -834,7 +831,7 @@ verify_installation() {
     if [ -d "/var/www/html" ]; then
         owner=$(stat -c "%U:%G" /var/www/html)
         permissions=$(stat -c "%a" /var/www/html)
-        if [ "$owner" = "$DEPLOYER_USERNAME:www-data" ] && ([ "$permissions" = "775" ] || [ "$permissions" = "2775" ]); then
+        if [ "$owner" = "deployer:www-data" ] && ([ "$permissions" = "775" ] || [ "$permissions" = "2775" ]); then
             log_success "✓ Web directory permissions correct"
         else
             log_warning "⚠ Web directory permissions: $owner ($permissions) - may need adjustment"
@@ -848,7 +845,7 @@ verify_installation() {
     log_info "Testing web stack with PHP execution..."
     test_php_file="/var/www/html/test_installation.php"
     echo '<?php echo "LEMP_STACK_PHP_OK_" . phpversion(); ?>' | sudo tee "$test_php_file" >/dev/null
-    sudo chown "$DEPLOYER_USERNAME:www-data" "$test_php_file"
+    sudo chown "deployer:www-data" "$test_php_file"
     sudo chmod 644 "$test_php_file"
     
     # Debug: Check if file exists and has correct permissions
@@ -936,7 +933,7 @@ main() {
     log_info "Configuration:"
     log_info "  - MySQL Version: $PHP_VERSION"
     log_info "  - Node.js Version: $NODE_MAJOR"
-    log_info "  - Deployer User: $DEPLOYER_USERNAME"
+    log_info "  - Deployer User: deployer"
     log_info "  - Timezone: $TIMEZONE"
     
     if [ "$MYSQL_ALLOW_REMOTE" = "any" ]; then
@@ -1001,9 +998,9 @@ main() {
         log_warning ""
     fi
     
-    log_info "3. Test SSH login: ssh $DEPLOYER_USERNAME@$(hostname -I | awk '{print $1}')"
+    log_info "3. Test SSH login: ssh deployer@$(hostname -I | awk '{print $1}')"
     log_info "4. Verify installations as deployer:"
-    log_info "   su - $DEPLOYER_USERNAME"
+    log_info "   su - deployer"
     log_info "   node -v && npm -v && composer --version && pm2 status"
     log_info "5. Check firewall: sudo ufw status"
     log_info "6. Configure Nginx virtual hosts in /etc/nginx/sites-available/"
@@ -1013,10 +1010,10 @@ main() {
     log_info "============================================"
     log_info "DEPLOYER SSH PUBLIC KEY (for Git, etc.):"
     log_info "============================================"
-    if [ -f "/home/$DEPLOYER_USERNAME/.ssh/id_rsa.pub" ]; then
-        cat /home/$DEPLOYER_USERNAME/.ssh/id_rsa.pub
+    if [ -f "/home/deployer/.ssh/id_rsa.pub" ]; then
+        cat /home/deployer/.ssh/id_rsa.pub
     else
-        log_warning "SSH key not found at /home/$DEPLOYER_USERNAME/.ssh/id_rsa.pub"
+        log_warning "SSH key not found at /home/deployer/.ssh/id_rsa.pub"
     fi
     log_info "============================================"
 }
