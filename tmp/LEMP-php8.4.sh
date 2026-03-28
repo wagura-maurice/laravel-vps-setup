@@ -341,6 +341,23 @@ install_php() {
     
     PHP_INI="/etc/php/${PHP_VERSION}/fpm/php.ini"
     
+    # Verify php.ini exists before attempting modifications
+    if [ ! -f "$PHP_INI" ]; then
+        log_error "PHP configuration file not found: $PHP_INI"
+        log_error "PHP ${PHP_VERSION}-fpm may not have installed correctly."
+        log_info "Attempting to locate php.ini..."
+        FOUND_INI=$(find /etc/php -name "php.ini" -path "*/fpm/*" 2>/dev/null | head -1)
+        if [ -n "$FOUND_INI" ]; then
+            log_info "Found php.ini at: $FOUND_INI - updating PHP_INI path"
+            PHP_INI="$FOUND_INI"
+        else
+            log_error "No php.ini found for PHP-FPM. Skipping PHP configuration."
+            log_warning "You may need to reinstall PHP manually: apt install php${PHP_VERSION}-fpm"
+            sudo systemctl restart php${PHP_VERSION}-fpm 2>/dev/null || true
+            return 0
+        fi
+    fi
+
     sudo sed -i 's/upload_max_filesize = .*/upload_max_filesize = 32M/' "$PHP_INI"
     sudo sed -i 's/file_uploads = .*/file_uploads = On/' "$PHP_INI"
     sudo sed -i 's/allow_url_fopen = .*/allow_url_fopen = On/' "$PHP_INI"
